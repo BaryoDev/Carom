@@ -71,6 +71,27 @@ await Carom.ShotAsync(() => Task.Run(() => ...), config);
 
 ---
 
+## 🚀 Deployment
+
+Carom uses a manual, highly-controlled deployment process to ensure stability.
+
+### Local Manual Publish
+To publish from your local machine (requires `NUGET_API_KEY` environment variable):
+```bash
+# Dry run to verify versions and pack
+./publish.sh 1.0.1 --dry-run
+
+# Full publish (build, pack, and push)
+./publish.sh 1.0.1 --push
+```
+
+### GitHub Actions (Manual Dispatch)
+1. Go to the **Actions** tab in GitHub.
+2. Select the **Publish to NuGet** workflow.
+3. Click **Run workflow**, enter the version number, and click the button.
+
+---
+
 ## 🧪 Philosophy: Calculated Resilience
 
 1.  **Chaos is Default**: Jitter is not an "advanced setting." It's mandatory for healthy distributed systems. In Carom, you have to explicitly `WithoutJitter()` to be unsafe.

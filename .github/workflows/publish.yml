@@ -1,0 +1,40 @@
+name: Publish to NuGet
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g. 1.0.0)'
+        required: true
+      is_prerelease:
+        description: 'Is this a pre-release?'
+        type: boolean
+        default: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+          
+      - name: Update Version
+        run: |
+          sed -i 's|<Version>.*</Version>|<Version>${{ github.event.inputs.version }}</Version>|' src/Carom/Carom.csproj
+          sed -i 's|<Version>.*</Version>|<Version>${{ github.event.inputs.version }}</Version>|' src/Carom.Http/Carom.Http.csproj
+          
+      - name: Build and Pack
+        run: |
+          dotnet build -c Release
+          dotnet pack -c Release -o ./dist /p:PackageVersion=${{ github.event.inputs.version }}
+          
+      - name: Push to NuGet
+        run: |
+          dotnet nuget push "./dist/*.nupkg" \
+            --api-key ${{ secrets.NUGET_API_KEY }} \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
