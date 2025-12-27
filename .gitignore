@@ -1,0 +1,10 @@
+[Bb]in/
+[Oo]bj/
+.vs/
+*.user
+*.suo
+*.sln.doccache
+*.cache
+*-Success.txt
+BenchmarkDotNet.Artifacts/
+.DS_Store

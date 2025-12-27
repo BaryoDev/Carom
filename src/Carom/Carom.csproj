@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    
+    <!-- Package Metadata -->
+    <PackageId>Carom</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Baryo.Dev</Authors>
+    <Company>Baryo.Dev</Company>
+    <Description>Carom: Physics-based, zero-dependency resilience for .NET. Enforces decorrelated jitter by default to prevent Thundering Herd issues.</Description>
+    <PackageTags>resilience;retry;jitter;polly-alternative;performance</PackageTags>
+    <RepositoryUrl>https://github.com/BaryoDev/Carom</RepositoryUrl>
+    <License>MPL-2.0</License>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>
