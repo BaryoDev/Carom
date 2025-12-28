@@ -39,7 +39,7 @@ jobs:
         uses: benchmark-action/github-action-benchmark@v1
         with:
           tool: "benchmarkdotnet"
-          output-file-path: benchmarks/Carom.Benchmarks/BenchmarkDotNet.Artifacts/results/Carom.Benchmarks-report.json
+          output-file-path: benchmarks/Carom.Benchmarks/BenchmarkDotNet.Artifacts/results/Carom.Benchmarks.ResilienceBenchmarks-report.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
           auto-push: true
           alert-threshold: "150%"
@@ -60,7 +60,7 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const resultsPath = 'benchmarks/Carom.Benchmarks/BenchmarkDotNet.Artifacts/results/Carom.Benchmarks-report.md';
+            const resultsPath = 'benchmarks/Carom.Benchmarks/BenchmarkDotNet.Artifacts/results/Carom.Benchmarks.ResilienceBenchmarks-report.md';
 
             if (fs.existsSync(resultsPath)) {
               const results = fs.readFileSync(resultsPath, 'utf8');

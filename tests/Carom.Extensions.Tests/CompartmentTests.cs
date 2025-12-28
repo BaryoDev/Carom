@@ -128,7 +128,7 @@ namespace Carom.Extensions.Tests
             Assert.Equal(1, ex.MaxConcurrency);
 
             gate.Set();
-            task.Wait();
+            await task;
         }
 
         [Fact]
