@@ -160,8 +160,7 @@ public class Program
         Console.WriteLine($"  Carom_HotPath: {benchmark.Carom_HotPath_Success()}");
         Console.WriteLine($"  Polly_HotPath: {benchmark.Polly_HotPath_Success()}");
 #else
-        BenchmarkRunner.Run<ResilienceBenchmarks>();
-        BenchmarkRunner.Run<JitterBenchmarks>();
+        BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args);
 #endif
     }
 }
