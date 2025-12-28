@@ -34,14 +34,12 @@ jobs:
         run: |
           cd benchmarks/Carom.Benchmarks
           dotnet run -c Release --exporters json --filter '*ResilienceBenchmarks*'
-          echo "Listing results:"
-          ls -R BenchmarkDotNet.Artifacts/results/
 
       - name: Store benchmark results
         uses: benchmark-action/github-action-benchmark@v1
         with:
           tool: "benchmarkdotnet"
-          output-file-path: benchmarks/Carom.Benchmarks/BenchmarkDotNet.Artifacts/results/Carom.Benchmarks.ResilienceBenchmarks-report.json
+          output-file-path: benchmarks/Carom.Benchmarks/BenchmarkDotNet.Artifacts/results/Carom.Benchmarks.ResilienceBenchmarks-report-full-compressed.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
           auto-push: true
           alert-threshold: "150%"
