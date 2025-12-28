@@ -1,16 +1,54 @@
-[Bb]in/
-[Oo]bj/
-.vs/
+# Build results
+bin/
+obj/
+dist/
+
+# NuGet
+*.nupkg
+*.snupkg
+
+# User-specific files
 *.user
 *.suo
-*.sln.doccache
-*.cache
-*-Success.txt
-BenchmarkDotNet.Artifacts/
-.DS_Store
+*.userosscache
+*.sln.docstates
 
-# Signing Keys
+# Visual Studio
+.vs/
+.vscode/
+
+# Rider
+.idea/
+
+# Signing keys (NEVER commit these)
+*.snk
+*.pfx
+*.pem
 carom_private.pem
 carom_public.pem
-carom.pfx
+carom.snk
 SIGNING_KEYS_README.md
+
+# Temporary files
+*.tmp
+*.temp
+create_snk.cs
+create_snk.exe
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test results
+TestResults/
+*.trx
+*.coverage
+
+# BenchmarkDotNet
+BenchmarkDotNet.Artifacts/
+
+# Agent/AI files (optional - keep if needed for development)
+.claude/
+.cursor/
+.cursorrules
+AI_INSTRUCTIONS.md
