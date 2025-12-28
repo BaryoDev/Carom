@@ -33,7 +33,7 @@ jobs:
       - name: Run Benchmarks
         run: |
           cd benchmarks/Carom.Benchmarks
-          dotnet run -c Release --exporters json --filter '*'
+          dotnet run -c Release --exporters json --filter '*ResilienceBenchmarks*'
 
       - name: Store benchmark results
         uses: benchmark-action/github-action-benchmark@v1
