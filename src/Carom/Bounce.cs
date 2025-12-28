@@ -28,10 +28,16 @@ namespace Carom
         /// </summary>
         public Func<Exception, bool>? ShouldBounce { get; }
 
-        private Bounce(int retries, TimeSpan baseDelay, bool disableJitter, Func<Exception, bool>? shouldBounce)
+        /// <summary>
+        /// Optional timeout for the entire operation (including retries).
+        /// </summary>
+        public TimeSpan? Timeout { get; }
+
+        private Bounce(int retries, TimeSpan baseDelay, TimeSpan? timeout, bool disableJitter, Func<Exception, bool>? shouldBounce)
         {
             Retries = retries;
             BaseDelay = baseDelay;
+            Timeout = timeout;
             DisableJitter = disableJitter;
             ShouldBounce = shouldBounce;
         }
@@ -42,7 +48,7 @@ namespace Carom
         /// <param name="count">The number of retry attempts (default: 3).</param>
         /// <returns>A new Bounce configuration.</returns>
         public static Bounce Times(int count = 3) =>
-            new Bounce(count, JitterStrategy.DefaultBaseDelay, disableJitter: false, shouldBounce: null);
+            new Bounce(count, JitterStrategy.DefaultBaseDelay, timeout: null, disableJitter: false, shouldBounce: null);
 
         /// <summary>
         /// Creates a bounce configuration that retries on the specified exception type.
@@ -51,7 +57,7 @@ namespace Carom
         /// <param name="retries">The number of retry attempts (default: 3).</param>
         /// <returns>A new Bounce configuration.</returns>
         public static Bounce On<TException>(int retries = 3) where TException : Exception =>
-            new Bounce(retries, JitterStrategy.DefaultBaseDelay, disableJitter: false, 
+            new Bounce(retries, JitterStrategy.DefaultBaseDelay, timeout: null, disableJitter: false, 
                 shouldBounce: ex => ex is TException);
 
         /// <summary>
@@ -60,7 +66,7 @@ namespace Carom
         /// <param name="delay">The base delay.</param>
         /// <returns>A new Bounce configuration with the specified delay.</returns>
         public Bounce WithDelay(TimeSpan delay) =>
-            new Bounce(Retries, delay, DisableJitter, ShouldBounce);
+            new Bounce(Retries, delay, Timeout, DisableJitter, ShouldBounce);
 
         /// <summary>
         /// Disables jitter, using fixed exponential backoff instead.
@@ -68,7 +74,7 @@ namespace Carom
         /// </summary>
         /// <returns>A new Bounce configuration with jitter disabled.</returns>
         public Bounce WithoutJitter() =>
-            new Bounce(Retries, BaseDelay, disableJitter: true, ShouldBounce);
+            new Bounce(Retries, BaseDelay, Timeout, disableJitter: true, ShouldBounce);
 
         /// <summary>
         /// Sets a predicate to determine which exceptions should trigger a retry.
@@ -76,6 +82,14 @@ namespace Carom
         /// <param name="predicate">The exception predicate.</param>
         /// <returns>A new Bounce configuration with the specified predicate.</returns>
         public Bounce When(Func<Exception, bool> predicate) =>
-            new Bounce(Retries, BaseDelay, DisableJitter, predicate);
+            new Bounce(Retries, BaseDelay, Timeout, DisableJitter, predicate);
+
+        /// <summary>
+        /// Sets the timeout for the operation.
+        /// </summary>
+        /// <param name="timeout">The timeout duration.</param>
+        /// <returns>A new Bounce configuration with the specified timeout.</returns>
+        public Bounce WithTimeout(TimeSpan timeout) =>
+            new Bounce(Retries, BaseDelay, timeout, DisableJitter, ShouldBounce);
     }
 }

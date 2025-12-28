@@ -8,3 +8,9 @@
 *-Success.txt
 BenchmarkDotNet.Artifacts/
 .DS_Store
+
+# Signing Keys
+carom_private.pem
+carom_public.pem
+carom.pfx
+SIGNING_KEYS_README.md

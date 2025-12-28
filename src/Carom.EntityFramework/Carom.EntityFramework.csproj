@@ -1,0 +1,37 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+
+    <!-- Package Metadata -->
+    <PackageId>Carom.EntityFramework</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Baryo.Dev</Authors>
+    <Company>Baryo.Dev</Company>
+    <Description>Entity Framework Core integration for Carom resilience library. Provides automatic retry for transient database errors with EF Core DbContext.</Description>
+    <PackageTags>resilience;entityframework;efcore;database;retry;transient-errors;polly-alternative;net8</PackageTags>
+    <RepositoryUrl>https://github.com/BaryoDev/Carom</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/BaryoDev/Carom</PackageProjectUrl>
+    <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <Copyright>Copyright © 2025 Baryo.Dev</Copyright>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Carom/Carom.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.0" />
+  </ItemGroup>
+
+</Project>

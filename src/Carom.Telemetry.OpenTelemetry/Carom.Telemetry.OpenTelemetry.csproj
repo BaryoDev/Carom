@@ -1,0 +1,38 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+
+    <!-- Package Metadata -->
+    <PackageId>Carom.Telemetry.OpenTelemetry</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Baryo.Dev</Authors>
+    <Company>Baryo.Dev</Company>
+    <Description>OpenTelemetry integration for Carom resilience library. Provides automatic metrics, traces, and activity tracking for all Carom resilience patterns.</Description>
+    <PackageTags>resilience;opentelemetry;metrics;tracing;observability;telemetry;polly-alternative;net8</PackageTags>
+    <RepositoryUrl>https://github.com/BaryoDev/Carom</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/BaryoDev/Carom</PackageProjectUrl>
+    <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <Copyright>Copyright © 2025 Baryo.Dev</Copyright>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Carom/Carom.csproj" />
+    <ProjectReference Include="../Carom.Extensions/Carom.Extensions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="OpenTelemetry.Api" Version="1.7.0" />
+  </ItemGroup>
+
+</Project>

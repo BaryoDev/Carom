@@ -11,11 +11,20 @@
     <Version>1.0.0</Version>
     <Authors>Baryo.Dev</Authors>
     <Company>Baryo.Dev</Company>
-    <Description>HTTP integration for Carom resilience library. Provides a DelegatingHandler for automatic retry on transient HTTP errors.</Description>
-    <PackageTags>resilience;retry;http;httpclient;delegatinghandler</PackageTags>
+    <Description>HTTP integration for Carom resilience library. Provides DelegatingHandler for automatic retry on transient HTTP errors (503, 408, 429, 504, 502). Integrates seamlessly with HttpClientFactory and ASP.NET Core.</Description>
+    <PackageTags>resilience;retry;http;httpclient;delegatinghandler;aspnetcore;transient-errors;polly-alternative;netstandard2.0</PackageTags>
     <RepositoryUrl>https://github.com/BaryoDev/Carom</RepositoryUrl>
-    <License>MPL-2.0</License>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/BaryoDev/Carom</PackageProjectUrl>
+    <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <Copyright>Copyright © 2025 Baryo.Dev</Copyright>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Carom\Carom.csproj" />

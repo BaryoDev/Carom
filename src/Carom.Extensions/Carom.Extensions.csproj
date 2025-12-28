@@ -1,0 +1,37 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+
+    <!-- Package Metadata -->
+    <PackageId>Carom.Extensions</PackageId>
+    <Version>1.4.0</Version>
+    <Authors>Baryo.Dev</Authors>
+    <Company>Baryo.Dev</Company>
+    <Description>Advanced resilience patterns for Carom: Circuit Breaker, Fallback, Bulkhead, and Rate Limiting. Zero external dependencies. Lock-free implementations for maximum performance. Extends Carom core with production-grade patterns.</Description>
+    <PackageTags>resilience;circuit-breaker;fallback;bulkhead;rate-limiting;polly-alternative;zero-dependency;performance;netstandard2.0;async;token-bucket</PackageTags>
+    <RepositoryUrl>https://github.com/BaryoDev/Carom</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/BaryoDev/Carom</PackageProjectUrl>
+    <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <Copyright>Copyright © 2025 Baryo.Dev</Copyright>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Carom.Extensions.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Carom/Carom.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+</Project>

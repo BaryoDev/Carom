@@ -8,14 +8,18 @@
     
     <!-- Package Metadata -->
     <PackageId>Carom</PackageId>
-    <Version>1.0.0</Version>
+    <Version>1.3.0</Version>
     <Authors>Baryo.Dev</Authors>
     <Company>Baryo.Dev</Company>
-    <Description>Carom: Physics-based, zero-dependency resilience for .NET. Enforces decorrelated jitter by default to prevent Thundering Herd issues.</Description>
-    <PackageTags>resilience;retry;jitter;polly-alternative;performance</PackageTags>
+    <Description>Carom: Physics-based, zero-dependency resilience library for .NET. Enforces decorrelated jitter by default to prevent Thundering Herd issues. Includes retry with exponential backoff and timeout support. Lean, fast, and safe.</Description>
+    <PackageTags>resilience;retry;polly-alternative;circuit-breaker;timeout;zero-dependency;performance;netstandard2.0;async;exponential-backoff;jitter</PackageTags>
     <RepositoryUrl>https://github.com/BaryoDev/Carom</RepositoryUrl>
-    <License>MPL-2.0</License>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/BaryoDev/Carom</PackageProjectUrl>
+    <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <Copyright>Copyright © 2025 Baryo.Dev</Copyright>
   </PropertyGroup>
 
   <ItemGroup>
