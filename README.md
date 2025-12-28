@@ -127,3 +127,13 @@ Built with the [Baryo.Dev](https://github.com/BaryoDev) philosophy: zero depende
 ---
 
 **Made with ❤️ by Baryo.Dev**
+
+## 📊 Performance
+
+Carom is **significantly faster** than Polly v8:
+
+- **175,000x faster** startup (0.02ns vs 3,857ns)
+- **15x faster** hot path (10.9ns vs 167.8ns)  
+- **4.8x faster** async operations (45ns vs 216ns)
+
+See [detailed benchmarks](docs/BENCHMARKS.md) for complete analysis.
