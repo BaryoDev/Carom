@@ -49,15 +49,15 @@ jobs:
           find . -name "*.nupkg" -exec sh -c 'echo "| {} | $(du -h {} | cut -f1) |"' \; >> $GITHUB_STEP_SUMMARY
 
           # Fail if any package exceeds size limits
-          CORE_SIZE=$(find src/Carom/bin/Release -name "Carom.*.nupkg" -exec du -k {} \; | cut -f1)
-          EXT_SIZE=$(find src/Carom.Extensions/bin/Release -name "Carom.Extensions.*.nupkg" -exec du -k {} \; | cut -f1)
+          CORE_SIZE=$(find src/Carom -name "Carom.*.nupkg" -exec du -k {} \; | head -n 1 | cut -f1)
+          EXT_SIZE=$(find src/Carom.Extensions -name "Carom.Extensions.*.nupkg" -exec du -k {} \; | head -n 1 | cut -f1)
 
-          if [ "$CORE_SIZE" -gt 50 ]; then
+          if [ -n "$CORE_SIZE" ] && [ "$CORE_SIZE" -gt 50 ]; then
             echo "❌ Carom core package exceeds 50KB limit: ${CORE_SIZE}KB"
             exit 1
           fi
 
-          if [ "$EXT_SIZE" -gt 100 ]; then
+          if [ -n "$EXT_SIZE" ] && [ "$EXT_SIZE" -gt 100 ]; then
             echo "❌ Carom.Extensions package exceeds 100KB limit: ${EXT_SIZE}KB"
             exit 1
           fi
@@ -70,18 +70,19 @@ jobs:
           echo "## 🔍 Dependency Audit" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          # Check Carom (should have zero dependencies)
-          CORE_DEPS=$(dotnet list src/Carom package | grep ">" | wc -l)
+          # Check Carom (should have zero external dependencies)
+          # Filter out auto-referenced NETStandard.Library
+          CORE_DEPS=$(dotnet list src/Carom package | grep ">" | grep -v "(A)" | wc -l)
           if [ "$CORE_DEPS" -gt 0 ]; then
-            echo "❌ Carom core has dependencies (should be zero)" >> $GITHUB_STEP_SUMMARY
+            echo "❌ Carom core has external dependencies (should be zero)" >> $GITHUB_STEP_SUMMARY
             dotnet list src/Carom package >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
 
-          # Check Carom.Extensions (should have zero dependencies)
-          EXT_DEPS=$(dotnet list src/Carom.Extensions package | grep ">" | wc -l)
+          # Check Carom.Extensions (should have zero external dependencies)
+          EXT_DEPS=$(dotnet list src/Carom.Extensions package | grep ">" | grep -v "(A)" | wc -l)
           if [ "$EXT_DEPS" -gt 0 ]; then
-            echo "❌ Carom.Extensions has dependencies (should be zero)" >> $GITHUB_STEP_SUMMARY
+            echo "❌ Carom.Extensions has external dependencies (should be zero)" >> $GITHUB_STEP_SUMMARY
             dotnet list src/Carom.Extensions package >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
