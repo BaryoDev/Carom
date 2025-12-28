@@ -44,6 +44,7 @@ jobs:
           auto-push: false
           summary-always: true
           skip-fetch-gh-pages: true
+          save-data-file: false
           alert-threshold: "150%"
           comment-on-alert: true
           fail-on-alert: true
