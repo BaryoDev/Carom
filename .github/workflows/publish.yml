@@ -4,37 +4,81 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to publish (e.g. 1.0.0)'
+        description: "Version to publish (e.g. 1.4.0)"
         required: true
-      is_prerelease:
-        description: 'Is this a pre-release?'
+        type: string
+      create_tag:
+        description: "Create git tag for this version?"
         type: boolean
-        default: false
+        default: true
 
 jobs:
   publish:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
-          
-      - name: Update Version
+          dotnet-version: "8.0.x"
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build Release
+        run: dotnet build -c Release --no-restore
+
+      - name: Run Tests
+        run: dotnet test -c Release --no-build --verbosity normal
+
+      - name: Pack all packages
         run: |
-          sed -i 's|<Version>.*</Version>|<Version>${{ github.event.inputs.version }}</Version>|' src/Carom/Carom.csproj
-          sed -i 's|<Version>.*</Version>|<Version>${{ github.event.inputs.version }}</Version>|' src/Carom.Http/Carom.Http.csproj
-          
-      - name: Build and Pack
-        run: |
-          dotnet build -c Release
-          dotnet pack -c Release -o ./dist /p:PackageVersion=${{ github.event.inputs.version }}
-          
+          dotnet pack src/Carom -c Release -o ./dist --no-build
+          dotnet pack src/Carom.Extensions -c Release -o ./dist --no-build
+          dotnet pack src/Carom.Http -c Release -o ./dist --no-build
+          dotnet pack src/Carom.AspNetCore -c Release -o ./dist --no-build
+          dotnet pack src/Carom.EntityFramework -c Release -o ./dist --no-build
+          dotnet pack src/Carom.Telemetry.OpenTelemetry -c Release -o ./dist --no-build
+
+      - name: List packages
+        run: ls -lh ./dist/*.nupkg
+
       - name: Push to NuGet
         run: |
           dotnet nuget push "./dist/*.nupkg" \
             --api-key ${{ secrets.NUGET_API_KEY }} \
             --source https://api.nuget.org/v3/index.json \
             --skip-duplicate
+
+      - name: Create Git Tag
+        if: ${{ github.event.inputs.create_tag == 'true' }}
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git tag -a "v${{ github.event.inputs.version }}" -m "Release v${{ github.event.inputs.version }}"
+          git push origin "v${{ github.event.inputs.version }}"
+
+      - name: Create GitHub Release
+        if: ${{ github.event.inputs.create_tag == 'true' }}
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ github.event.inputs.version }}
+          release_name: Release v${{ github.event.inputs.version }}
+          body: |
+            ## Carom v${{ github.event.inputs.version }}
+
+            Published packages:
+            - Carom
+            - Carom.Extensions
+            - Carom.Http
+            - Carom.AspNetCore
+            - Carom.EntityFramework
+            - Carom.Telemetry.OpenTelemetry
+
+            See [CHANGELOG.md](https://github.com/BaryoDev/Carom/blob/master/CHANGELOG.md) for details.
+          draft: false
+          prerelease: false

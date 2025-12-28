@@ -1,89 +1,89 @@
 name: Build and Test
 
 on:
-    push:
-        branches: [main, develop]
-    pull_request:
-        branches: [main, develop]
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
 
 jobs:
-    build:
-        runs-on: ${{ matrix.os }}
-        strategy:
-            matrix:
-                os: [ubuntu-latest, windows-latest, macos-latest]
-                dotnet-version: ["6.0.x", "7.0.x", "8.0.x"]
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        dotnet-version: ["6.0.x", "7.0.x", "8.0.x"]
 
-        steps:
-            - uses: actions/checkout@v4
+    steps:
+      - uses: actions/checkout@v4
 
-            - name: Setup .NET ${{ matrix.dotnet-version }}
-              uses: actions/setup-dotnet@v4
-              with:
-                  dotnet-version: ${{ matrix.dotnet-version }}
+      - name: Setup .NET ${{ matrix.dotnet-version }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ matrix.dotnet-version }}
 
-            - name: Restore dependencies
-              run: dotnet restore
+      - name: Restore dependencies
+        run: dotnet restore
 
-            - name: Build
-              run: dotnet build --configuration Release --no-restore
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
 
-            - name: Test
-              run: dotnet test --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage"
+      - name: Test
+        run: dotnet test --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage"
 
-            - name: Upload coverage to Codecov
-              if: matrix.os == 'ubuntu-latest' && matrix.dotnet-version == '8.0.x'
-              uses: codecov/codecov-action@v3
-              with:
-                  files: "**/coverage.cobertura.xml"
-                  fail_ci_if_error: false
+      - name: Upload coverage to Codecov
+        if: matrix.os == 'ubuntu-latest' && matrix.dotnet-version == '8.0.x'
+        uses: codecov/codecov-action@v3
+        with:
+          files: "**/coverage.cobertura.xml"
+          fail_ci_if_error: false
 
-            - name: Check package size
-              if: matrix.os == 'ubuntu-latest' && matrix.dotnet-version == '8.0.x'
-              run: |
-                  dotnet pack -c Release
-                  echo "## 📦 Package Sizes" >> $GITHUB_STEP_SUMMARY
-                  echo "" >> $GITHUB_STEP_SUMMARY
-                  echo "| Package | Size |" >> $GITHUB_STEP_SUMMARY
-                  echo "|---------|------|" >> $GITHUB_STEP_SUMMARY
-                  find . -name "*.nupkg" -exec sh -c 'echo "| {} | $(du -h {} | cut -f1) |"' \; >> $GITHUB_STEP_SUMMARY
+      - name: Check package size
+        if: matrix.os == 'ubuntu-latest' && matrix.dotnet-version == '8.0.x'
+        run: |
+          dotnet pack -c Release
+          echo "## 📦 Package Sizes" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Package | Size |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|------|" >> $GITHUB_STEP_SUMMARY
+          find . -name "*.nupkg" -exec sh -c 'echo "| {} | $(du -h {} | cut -f1) |"' \; >> $GITHUB_STEP_SUMMARY
 
-                  # Fail if any package exceeds size limits
-                  CORE_SIZE=$(find src/Carom/bin/Release -name "Carom.*.nupkg" -exec du -k {} \; | cut -f1)
-                  EXT_SIZE=$(find src/Carom.Extensions/bin/Release -name "Carom.Extensions.*.nupkg" -exec du -k {} \; | cut -f1)
+          # Fail if any package exceeds size limits
+          CORE_SIZE=$(find src/Carom/bin/Release -name "Carom.*.nupkg" -exec du -k {} \; | cut -f1)
+          EXT_SIZE=$(find src/Carom.Extensions/bin/Release -name "Carom.Extensions.*.nupkg" -exec du -k {} \; | cut -f1)
 
-                  if [ "$CORE_SIZE" -gt 50 ]; then
-                    echo "❌ Carom core package exceeds 50KB limit: ${CORE_SIZE}KB"
-                    exit 1
-                  fi
+          if [ "$CORE_SIZE" -gt 50 ]; then
+            echo "❌ Carom core package exceeds 50KB limit: ${CORE_SIZE}KB"
+            exit 1
+          fi
 
-                  if [ "$EXT_SIZE" -gt 100 ]; then
-                    echo "❌ Carom.Extensions package exceeds 100KB limit: ${EXT_SIZE}KB"
-                    exit 1
-                  fi
+          if [ "$EXT_SIZE" -gt 100 ]; then
+            echo "❌ Carom.Extensions package exceeds 100KB limit: ${EXT_SIZE}KB"
+            exit 1
+          fi
 
-                  echo "✅ All packages within size limits"
+          echo "✅ All packages within size limits"
 
-            - name: Dependency audit
-              if: matrix.os == 'ubuntu-latest' && matrix.dotnet-version == '8.0.x'
-              run: |
-                  echo "## 🔍 Dependency Audit" >> $GITHUB_STEP_SUMMARY
-                  echo "" >> $GITHUB_STEP_SUMMARY
+      - name: Dependency audit
+        if: matrix.os == 'ubuntu-latest' && matrix.dotnet-version == '8.0.x'
+        run: |
+          echo "## 🔍 Dependency Audit" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
 
-                  # Check Carom (should have zero dependencies)
-                  CORE_DEPS=$(dotnet list src/Carom package | grep ">" | wc -l)
-                  if [ "$CORE_DEPS" -gt 0 ]; then
-                    echo "❌ Carom core has dependencies (should be zero)" >> $GITHUB_STEP_SUMMARY
-                    dotnet list src/Carom package >> $GITHUB_STEP_SUMMARY
-                    exit 1
-                  fi
+          # Check Carom (should have zero dependencies)
+          CORE_DEPS=$(dotnet list src/Carom package | grep ">" | wc -l)
+          if [ "$CORE_DEPS" -gt 0 ]; then
+            echo "❌ Carom core has dependencies (should be zero)" >> $GITHUB_STEP_SUMMARY
+            dotnet list src/Carom package >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
 
-                  # Check Carom.Extensions (should have zero dependencies)
-                  EXT_DEPS=$(dotnet list src/Carom.Extensions package | grep ">" | wc -l)
-                  if [ "$EXT_DEPS" -gt 0 ]; then
-                    echo "❌ Carom.Extensions has dependencies (should be zero)" >> $GITHUB_STEP_SUMMARY
-                    dotnet list src/Carom.Extensions package >> $GITHUB_STEP_SUMMARY
-                    exit 1
-                  fi
+          # Check Carom.Extensions (should have zero dependencies)
+          EXT_DEPS=$(dotnet list src/Carom.Extensions package | grep ">" | wc -l)
+          if [ "$EXT_DEPS" -gt 0 ]; then
+            echo "❌ Carom.Extensions has dependencies (should be zero)" >> $GITHUB_STEP_SUMMARY
+            dotnet list src/Carom.Extensions package >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
 
-                  echo "✅ Core packages have zero dependencies" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Core packages have zero dependencies" >> $GITHUB_STEP_SUMMARY
