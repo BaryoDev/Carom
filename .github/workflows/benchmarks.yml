@@ -35,42 +35,18 @@ jobs:
           cd benchmarks/Carom.Benchmarks
           dotnet run -c Release --exporters json --filter '*ResilienceBenchmarks*'
 
-      - name: Store benchmark results
-        uses: benchmark-action/github-action-benchmark@v1
-        with:
-          tool: "benchmarkdotnet"
-          output-file-path: benchmarks/Carom.Benchmarks/BenchmarkDotNet.Artifacts/results/Carom.Benchmarks.ResilienceBenchmarks-report-full-compressed.json
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          auto-push: false
-          summary-always: true
-          skip-fetch-gh-pages: true
-          save-data-file: false
-          alert-threshold: "150%"
-          comment-on-alert: true
-          fail-on-alert: true
-          alert-comment-cc-users: "@BaryoDev"
+          REPORT_PATH="BenchmarkDotNet.Artifacts/results/Carom.Benchmarks.ResilienceBenchmarks-report-github.md"
+          if [ -f "$REPORT_PATH" ]; then
+            echo "### Documentation Benchmark Results" >> $GITHUB_STEP_SUMMARY
+            cat "$REPORT_PATH" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Benchmark report not found at $REPORT_PATH"
+            exit 1
+          fi
 
-      - name: Upload benchmark results
+      - name: Archive benchmark results
         uses: actions/upload-artifact@v4
         with:
           name: benchmark-results
-          path: benchmarks/Carom.Benchmarks/BenchmarkDotNet.Artifacts/
+          path: benchmarks/Carom.Benchmarks/BenchmarkDotNet.Artifacts/results/
           retention-days: 30
-
-      - name: Comment PR with results
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const resultsPath = 'benchmarks/Carom.Benchmarks/BenchmarkDotNet.Artifacts/results/Carom.Benchmarks.ResilienceBenchmarks-report.md';
-
-            if (fs.existsSync(resultsPath)) {
-              const results = fs.readFileSync(resultsPath, 'utf8');
-              github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: `## 📊 Benchmark Results\n\n${results}`
-              });
-            }
