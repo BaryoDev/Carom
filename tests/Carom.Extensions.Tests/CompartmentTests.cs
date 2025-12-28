@@ -98,7 +98,7 @@ namespace Carom.Extensions.Tests
         }
 
         [Fact]
-        public void Execute_ThrowsCompartmentFullException_WhenFull()
+        public async Task Execute_ThrowsCompartmentFullException_WhenFull()
         {
             var compartment = Compartment.ForResource("full-test")
                 .WithMaxConcurrency(1)
