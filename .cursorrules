@@ -1,0 +1,24 @@
+# BaryoDev Agent Skills Configuration
+
+# Enabled Skills
+# Definitions: https://github.com/BaryoDev/skills
+
+- Skill: `baryo-coding`
+  - Mode: **Library (Performance First)**
+  - Rules: 
+    - No LINQ in hot paths. Use `for` loops.
+    - Zero Allocations: Use `struct` and `Span<T>`.
+    - Zero External Dependencies.
+    - Meta-Programming: Use Expression Trees, not Reflection.
+
+- Skill: `baryo-testing`
+  - Style: **Verdict** (Fluent Assertions).
+  - Benchmarks: Required for all perf-critical changes (BenchmarkDotNet).
+
+- Skill: `baryo-compliance`
+  - License: MPL-2.0
+  - Header: Ensure all files have the BaryoDev copyright header.
+
+- Skill: `baryo-packaging`
+  - Workflow: **Manual Only**. Never auto-publish.
+  - Versioning: SemVer (Manual bump).
