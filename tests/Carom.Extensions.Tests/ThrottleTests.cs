@@ -128,7 +128,7 @@ namespace Carom.Extensions.Tests
                 try
                 {
                     await CaromThrottleExtensions.ShotAsync(
-                        async () => 99,
+                        () => Task.FromResult(99),
                         throttle,
                         retries: 0);
                 }
