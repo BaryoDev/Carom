@@ -36,12 +36,12 @@ jobs:
       - name: Pack all packages
         run: |
           VERSION=${{ github.event.inputs.version }}
-          dotnet pack src/Carom -c Release -o ./dist --no-build /p:Version=$VERSION
-          dotnet pack src/Carom.Extensions -c Release -o ./dist --no-build /p:Version=$VERSION
-          dotnet pack src/Carom.Http -c Release -o ./dist --no-build /p:Version=$VERSION
-          dotnet pack src/Carom.AspNetCore -c Release -o ./dist --no-build /p:Version=$VERSION
-          dotnet pack src/Carom.EntityFramework -c Release -o ./dist --no-build /p:Version=$VERSION
-          dotnet pack src/Carom.Telemetry.OpenTelemetry -c Release -o ./dist --no-build /p:Version=$VERSION
+          dotnet pack src/Carom -c Release -o ./dist /p:Version=$VERSION
+          dotnet pack src/Carom.Extensions -c Release -o ./dist /p:Version=$VERSION
+          dotnet pack src/Carom.Http -c Release -o ./dist /p:Version=$VERSION
+          dotnet pack src/Carom.AspNetCore -c Release -o ./dist /p:Version=$VERSION
+          dotnet pack src/Carom.EntityFramework -c Release -o ./dist /p:Version=$VERSION
+          dotnet pack src/Carom.Telemetry.OpenTelemetry -c Release -o ./dist /p:Version=$VERSION
 
       - name: List packages
         run: ls -lh ./dist/*.nupkg
