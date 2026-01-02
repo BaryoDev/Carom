@@ -22,13 +22,13 @@ namespace Carom.Benchmarks
         [GlobalSetup]
         public void Setup()
         {
-            // Circuit that stays closed
-            _closedCircuit = Cushion.ForService($"closed-{Guid.NewGuid()}")
+            // Use consistent service keys for benchmarking (avoid allocation overhead)
+            _closedCircuit = Cushion.ForService("benchmark-closed-circuit")
                 .OpenAfter(100, 200)
                 .HalfOpenAfter(TimeSpan.FromSeconds(30));
 
             // Circuit that will be open
-            _openCircuit = Cushion.ForService($"open-{Guid.NewGuid()}")
+            _openCircuit = Cushion.ForService("benchmark-open-circuit")
                 .OpenAfter(2, 2)
                 .HalfOpenAfter(TimeSpan.FromSeconds(30));
 

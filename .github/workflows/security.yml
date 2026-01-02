@@ -52,10 +52,13 @@ jobs:
           dotnet list tests/Carom.Tests package --vulnerable --include-transitive || echo "No vulnerabilities found in test packages" >> $GITHUB_STEP_SUMMARY
           dotnet list tests/Carom.Extensions.Tests package --vulnerable --include-transitive || echo "No vulnerabilities found in test packages" >> $GITHUB_STEP_SUMMARY
           
-          # Fail if any vulnerabilities found
+          # Check for vulnerabilities and fail if found
           if dotnet list package --vulnerable --include-transitive 2>&1 | grep -q "has the following vulnerable packages"; then
             echo "❌ Vulnerable dependencies found" >> $GITHUB_STEP_SUMMARY
             exit 1
+          elif [ $? -ne 0 ]; then
+            # Command failed, but not due to vulnerabilities
+            echo "⚠️ Unable to complete vulnerability scan" >> $GITHUB_STEP_SUMMARY
           else
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "✅ No vulnerable dependencies found" >> $GITHUB_STEP_SUMMARY

@@ -197,9 +197,11 @@ Based on existing benchmarks:
 
 ### Environment Variables
 ```bash
-# Disable dynamic PGO for consistent results
+# Disable dynamic PGO for consistent results (.NET 6+)
 export DOTNET_TieredPGO=0
-export DOTNET_TC_QuickJitForLoops=1
+
+# Note: DOTNET_TC_QuickJitForLoops is deprecated in .NET 7+
+# For .NET 7+ use DOTNET_TC_CallCountingDelayMs instead if needed
 ```
 
 ## Continuous Benchmarking

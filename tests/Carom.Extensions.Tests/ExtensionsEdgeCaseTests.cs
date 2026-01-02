@@ -492,13 +492,15 @@ namespace Carom.Extensions.Tests
         public async Task PocketAsync_MultipleConcurrentCalls_DontInterfere()
         {
             var tasks = new List<Task<int>>();
+            var random = new Random(42); // Use seed for deterministic behavior
 
             for (int i = 0; i < 10; i++)
             {
                 int taskId = i;
+                int delay = random.Next(1, 20);
                 tasks.Add(new Func<Task<int>>(async () =>
                 {
-                    await Task.Delay(new Random().Next(1, 20));
+                    await Task.Delay(delay);
                     if (taskId % 2 == 0)
                     {
                         throw new InvalidOperationException();

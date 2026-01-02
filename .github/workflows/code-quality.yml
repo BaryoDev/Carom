@@ -233,16 +233,16 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### XML Documentation Coverage" >> $GITHUB_STEP_SUMMARY
           
-          # Count public types/members vs XML comments
-          PUBLIC_TYPES=$(find src -name "*.cs" -exec grep -c "^\s*public\s*\(class\|interface\|struct\|enum\)" {} + | awk '{sum+=$1} END {print sum}' || echo "0")
-          XML_DOCS=$(find src -name "*.cs" -exec grep -c "^\s*/// <summary>" {} + | awk '{sum+=$1} END {print sum}' || echo "0")
+          # Count public types and XML docs (simple approximation)
+          PUBLIC_COUNT=$(find src -name "*.cs" -type f -exec grep -c "public class\|public interface\|public struct" {} + 2>/dev/null | awk '{sum+=$1} END {print sum}' || echo "0")
+          XML_COUNT=$(find src -name "*.cs" -type f -exec grep -c "/// <summary>" {} + 2>/dev/null | awk '{sum+=$1} END {print sum}' || echo "0")
           
-          echo "- **Public Types**: $PUBLIC_TYPES" >> $GITHUB_STEP_SUMMARY
-          echo "- **XML Comments**: $XML_DOCS" >> $GITHUB_STEP_SUMMARY
+          echo "- **Public Types**: ~$PUBLIC_COUNT" >> $GITHUB_STEP_SUMMARY
+          echo "- **XML Comments**: $XML_COUNT" >> $GITHUB_STEP_SUMMARY
           
-          if [ "$XML_DOCS" -gt 0 ] && [ "$PUBLIC_TYPES" -gt 0 ]; then
-            COVERAGE=$((XML_DOCS * 100 / PUBLIC_TYPES))
-            echo "- **Coverage**: ~${COVERAGE}%" >> $GITHUB_STEP_SUMMARY
+          if [ "$XML_COUNT" -gt 0 ] && [ "$PUBLIC_COUNT" -gt 0 ]; then
+            COVERAGE=$((XML_COUNT * 100 / PUBLIC_COUNT))
+            echo "- **Documentation Coverage**: ~${COVERAGE}%" >> $GITHUB_STEP_SUMMARY
           fi
 
   quality-gates:

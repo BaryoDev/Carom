@@ -166,19 +166,20 @@ namespace Carom.Tests
         public async Task ShotAsync_ConcurrentCalls_DoNotInterfere()
         {
             var tasks = new List<Task<int>>();
-            var random = new Random();
+            var random = new Random(42); // Use seed for deterministic behavior
 
             // Execute 10 concurrent retry operations
             for (int i = 0; i < 10; i++)
             {
                 int taskId = i;
+                int delay = random.Next(1, 10);
                 tasks.Add(Task.Run(async () =>
                 {
                     var attemptCount = 0;
                     return await Carom.ShotAsync(async () =>
                     {
                         attemptCount++;
-                        await Task.Delay(random.Next(1, 10));
+                        await Task.Delay(delay);
                         if (attemptCount < 2)
                         {
                             throw new InvalidOperationException($"Task {taskId} attempt {attemptCount}");

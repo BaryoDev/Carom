@@ -258,7 +258,7 @@ namespace Carom.Tests
             }
 
             // Most operations should succeed (some may exhaust retries)
-            var successCount = results.Count(r => r >= 0 || r <= 19);
+            var successCount = results.Count(r => r >= 0 && r <= 19);
             Assert.True(successCount >= 15, $"Expected at least 15 successes, got {successCount}");
         }
 
