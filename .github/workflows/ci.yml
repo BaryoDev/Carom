@@ -29,7 +29,21 @@ jobs:
         run: dotnet build --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage"
+        run: dotnet test --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage" --results-directory ./coverage
+
+      - name: Generate coverage report
+        if: matrix.os == 'ubuntu-latest' && matrix.dotnet-version == '8.0.x'
+        run: |
+          dotnet tool install -g dotnet-reportgenerator-globaltool || true
+          reportgenerator -reports:./coverage/**/coverage.cobertura.xml -targetdir:./coverage/report -reporttypes:HtmlInline_AzurePipelines
+          
+          echo "## 📊 Code Coverage Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Extract coverage percentage
+          COVERAGE=$(grep -oP 'Line coverage: \K[\d.]+' ./coverage/report/index.html || echo "N/A")
+          echo "- **Line Coverage**: ${COVERAGE}%" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
 
       - name: Upload coverage to Codecov
         if: matrix.os == 'ubuntu-latest' && matrix.dotnet-version == '8.0.x'
@@ -37,6 +51,13 @@ jobs:
         with:
           files: "**/coverage.cobertura.xml"
           fail_ci_if_error: false
+      
+      - name: Upload coverage report
+        if: matrix.os == 'ubuntu-latest' && matrix.dotnet-version == '8.0.x'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: ./coverage/report/
 
       - name: Check package size
         if: matrix.os == 'ubuntu-latest' && matrix.dotnet-version == '8.0.x'
