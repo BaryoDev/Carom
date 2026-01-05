@@ -27,7 +27,7 @@ namespace Carom.Extensions
 
             // Start with full bucket
             _tokens = (long)burstSize * 1000;
-            _lastRefillTicks = _stopwatch.ElapsedTicks;
+            _lastRefillTicks = _stopwatch.Elapsed.Ticks;
         }
 
         /// <summary>
@@ -64,7 +64,7 @@ namespace Carom.Extensions
         /// </summary>
         private void RefillTokens()
         {
-            var currentTicks = _stopwatch.ElapsedTicks;
+            var currentTicks = _stopwatch.Elapsed.Ticks;
             var lastTicks = Volatile.Read(ref _lastRefillTicks);
             var elapsedTicks = currentTicks - lastTicks;
 

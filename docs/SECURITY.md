@@ -106,6 +106,84 @@ Security updates will be published as:
 
 Subscribe to GitHub notifications to receive security alerts.
 
+## Security Testing
+
+### Automated Security Scans
+
+Carom includes comprehensive automated security testing:
+
+#### 1. Dependency Vulnerability Scanning
+- **Frequency**: On every PR and weekly
+- **Tool**: `dotnet list package --vulnerable`
+- **Coverage**: All dependencies (core packages have zero external dependencies)
+- **Action**: Automatic alerts and CI failure on vulnerabilities
+
+#### 2. CodeQL Static Analysis (SAST)
+- **Frequency**: On every PR and weekly
+- **Tool**: GitHub CodeQL
+- **Queries**: Security-extended and security-and-quality
+- **Coverage**: All C# code for common vulnerabilities
+
+#### 3. Security-Focused Unit Tests
+- **Location**: `tests/*/SecurityTests.cs`
+- **Coverage**:
+  - Input validation tests
+  - Exception safety (no sensitive data leaks)
+  - Thread safety under attack scenarios
+  - Denial-of-Service (DoS) prevention
+  - Resource exhaustion prevention
+  - Edge case security scenarios
+
+#### 4. Edge Case Testing
+- **Location**: `tests/*/EdgeCaseTests.cs`
+- **Coverage**:
+  - Boundary conditions
+  - Concurrent operations and race conditions
+  - Error recovery scenarios
+  - Malformed/unexpected input data
+  - Cancellation edge cases
+
+### Running Security Tests Locally
+
+```bash
+# Run all security tests
+dotnet test --filter "FullyQualifiedName~SecurityTests"
+
+# Run edge case tests
+dotnet test --filter "FullyQualifiedName~EdgeCaseTests"
+
+# Run with code coverage
+dotnet test --collect:"XPlat Code Coverage"
+```
+
+### Security Test Categories
+
+#### Input Validation
+- Null/empty input handling
+- Extreme value handling
+- Invalid parameter combinations
+
+#### Exception Safety
+- No sensitive data in exception messages
+- No sensitive data in stack traces
+- Proper exception type preservation
+
+#### Thread Safety
+- Concurrent access under load
+- Race condition prevention
+- State consistency under contention
+
+#### DoS Prevention
+- Rate limiting enforcement
+- Timeout enforcement
+- Maximum retry limits
+- Resource exhaustion prevention
+
+#### Resource Management
+- Proper cleanup of disposable resources
+- No memory leaks under load
+- No stack exhaustion with deep recursion
+
 ## Contact
 
 - **Security Issues**: security@baryo.dev (if configured)

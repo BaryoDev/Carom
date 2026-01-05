@@ -68,14 +68,13 @@ namespace Carom.Extensions
                     state.RecordSuccess();
                     return result;
                 }
-                catch (Exception ex)
+                catch
                 {
                     state.RecordFailure();
 
                     if (state.ShouldOpen(FailureThreshold, SamplingWindow))
                     {
                         state.Open();
-                        throw new CircuitOpenException(ServiceKey, ex);
                     }
 
                     throw;
@@ -104,10 +103,10 @@ namespace Carom.Extensions
                     state.Close(); // Success! Close circuit
                     return result;
                 }
-                catch (Exception ex)
+                catch
                 {
                     state.Open(); // Failed, reopen
-                    throw new CircuitOpenException(ServiceKey, ex);
+                    throw;
                 }
             }
 
@@ -130,14 +129,13 @@ namespace Carom.Extensions
                     state.RecordSuccess();
                     return result;
                 }
-                catch (Exception ex)
+                catch
                 {
                     state.RecordFailure();
 
                     if (state.ShouldOpen(FailureThreshold, SamplingWindow))
                     {
                         state.Open();
-                        throw new CircuitOpenException(ServiceKey, ex);
                     }
 
                     throw;
@@ -166,10 +164,10 @@ namespace Carom.Extensions
                     state.Close(); // Success! Close circuit
                     return result;
                 }
-                catch (Exception ex)
+                catch
                 {
                     state.Open(); // Failed, reopen
-                    throw new CircuitOpenException(ServiceKey, ex);
+                    throw;
                 }
             }
 

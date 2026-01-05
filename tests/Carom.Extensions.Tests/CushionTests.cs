@@ -10,7 +10,6 @@ namespace Carom.Extensions.Tests
         public CushionTests()
         {
             // Clear state between tests
-            CushionStore.Clear();
         }
 
         #region Configuration Tests
@@ -18,7 +17,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public void ForService_CreatesBuilder_WithValidServiceKey()
         {
-            var builder = Cushion.ForService("test-service");
+            var builder = Cushion.ForService("test-service-" + Guid.NewGuid());
             Assert.NotNull(builder);
         }
 
@@ -65,7 +64,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public void Execute_ReturnsResult_WhenCircuitClosed()
         {
-            var cushion = Cushion.ForService("closed-test")
+            var cushion = Cushion.ForService("closed-test-" + Guid.NewGuid())
                 .OpenAfter(3, 5)
                 .HalfOpenAfter(TimeSpan.FromSeconds(30));
 
@@ -77,7 +76,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public async Task ExecuteAsync_ReturnsResult_WhenCircuitClosed()
         {
-            var cushion = Cushion.ForService("closed-async-test")
+            var cushion = Cushion.ForService("closed-async-test-" + Guid.NewGuid())
                 .OpenAfter(3, 5)
                 .HalfOpenAfter(TimeSpan.FromSeconds(30));
 
@@ -92,7 +91,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public void CircuitStaysClosed_WithSuccessfulCalls()
         {
-            var cushion = Cushion.ForService("stays-closed-test")
+            var cushion = Cushion.ForService("stays-closed-test-" + Guid.NewGuid())
                 .OpenAfter(3, 5)
                 .HalfOpenAfter(TimeSpan.FromSeconds(30));
 
@@ -111,7 +110,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public void CircuitOpens_AfterThresholdFailures()
         {
-            var cushion = Cushion.ForService("opens-test")
+            var cushion = Cushion.ForService("opens-test-" + Guid.NewGuid())
                 .OpenAfter(3, 5)  // 3 failures in 5 calls
                 .HalfOpenAfter(TimeSpan.FromSeconds(30));
 
@@ -145,7 +144,7 @@ namespace Carom.Extensions.Tests
             var exception = Assert.Throws<CircuitOpenException>(() =>
                 CaromCushionExtensions.Shot(() => 42, cushion, retries: 0));
 
-            Assert.Equal("opens-test", exception.ServiceKey);
+            Assert.StartsWith("opens-test-", exception.ServiceKey);
         }
 
         #endregion
@@ -239,7 +238,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public void Shot_WithCushion_RetriesThenOpensCircuit()
         {
-            var cushion = Cushion.ForService("integration-test")
+            var cushion = Cushion.ForService("integration-test-" + Guid.NewGuid())
                 .OpenAfter(3, 5)
                 .HalfOpenAfter(TimeSpan.FromSeconds(30));
 
@@ -269,7 +268,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public void Shot_WithBounce_WorksWithCushion()
         {
-            var cushion = Cushion.ForService("bounce-test")
+            var cushion = Cushion.ForService("bounce-test-" + Guid.NewGuid())
                 .OpenAfter(5, 10)
                 .HalfOpenAfter(TimeSpan.FromSeconds(30));
 

@@ -11,7 +11,6 @@ namespace Carom.Extensions.Tests
     {
         public CompartmentTests()
         {
-            CompartmentStore.Clear();
         }
 
         #region Configuration Tests
@@ -19,7 +18,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public void ForResource_CreatesBuilder_WithValidResourceKey()
         {
-            var builder = Compartment.ForResource("test-resource");
+            var builder = Compartment.ForResource("test-resource-" + Guid.NewGuid());
             Assert.NotNull(builder);
         }
 
@@ -57,7 +56,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public async Task ExecuteAsync_AllowsConcurrentExecutions_UpToLimit()
         {
-            var compartment = Compartment.ForResource("concurrent-test")
+            var compartment = Compartment.ForResource("concurrent-test-" + Guid.NewGuid())
                 .WithMaxConcurrency(3)
                 .Build();
 
@@ -100,16 +99,18 @@ namespace Carom.Extensions.Tests
         [Fact]
         public async Task Execute_ThrowsCompartmentFullException_WhenFull()
         {
-            var compartment = Compartment.ForResource("full-test")
+            var compartment = Compartment.ForResource("full-test-" + Guid.NewGuid())
                 .WithMaxConcurrency(1)
                 .Build();
 
             var gate = new ManualResetEventSlim(false);
+            var entrySignal = new ManualResetEventSlim(false);
             var task = Task.Run(() =>
             {
                 CaromCompartmentExtensions.Shot(
                     () =>
                     {
+                        entrySignal.Set();
                         gate.Wait();
                         return 1;
                     },
@@ -117,14 +118,14 @@ namespace Carom.Extensions.Tests
                     retries: 0);
             });
 
-            Thread.Sleep(50); // Let first task acquire
+            entrySignal.Wait(); // Wait until first task has acquired the slot
 
             var ex = Assert.Throws<CompartmentFullException>(() =>
             {
                 CaromCompartmentExtensions.Shot(() => 2, compartment, retries: 0);
             });
 
-            Assert.Equal("full-test", ex.ResourceKey);
+            Assert.StartsWith("full-test-", ex.ResourceKey);
             Assert.Equal(1, ex.MaxConcurrency);
 
             gate.Set();
@@ -134,7 +135,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public async Task ExecuteAsync_ReleasesSlot_AfterCompletion()
         {
-            var compartment = Compartment.ForResource("release-test")
+            var compartment = Compartment.ForResource("release-test-" + Guid.NewGuid())
                 .WithMaxConcurrency(1)
                 .Build();
 
@@ -169,7 +170,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public async Task ExecuteAsync_ReleasesSlot_OnException()
         {
-            var compartment = Compartment.ForResource("exception-test")
+            var compartment = Compartment.ForResource("exception-test-" + Guid.NewGuid())
                 .WithMaxConcurrency(1)
                 .Build();
 
@@ -206,7 +207,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public async Task Shot_WithBounce_WorksWithCompartment()
         {
-            var compartment = Compartment.ForResource("bounce-test")
+            var compartment = Compartment.ForResource("bounce-test-" + Guid.NewGuid())
                 .WithMaxConcurrency(5)
                 .Build();
 
