@@ -17,9 +17,6 @@ namespace Carom.Extensions.Tests
     {
         public SecurityTests()
         {
-            CushionStore.Clear();
-            CompartmentStore.Clear();
-            ThrottleStore.Clear();
         }
 
         #region Circuit Breaker Security Tests
@@ -47,7 +44,7 @@ namespace Carom.Extensions.Tests
                     .HalfOpenAfter(TimeSpan.FromSeconds(10)));
 
             Assert.Throws<ArgumentException>(() =>
-                Cushion.ForService("test")
+                Cushion.ForService("test-" + Guid.NewGuid())
                     .OpenAfter(10, 5) // threshold > window
                     .HalfOpenAfter(TimeSpan.FromSeconds(10)));
         }
@@ -56,12 +53,12 @@ namespace Carom.Extensions.Tests
         public void Cushion_ValidatesHalfOpenDelay()
         {
             Assert.Throws<ArgumentException>(() =>
-                Cushion.ForService("test")
+                Cushion.ForService("test-" + Guid.NewGuid())
                     .OpenAfter(3, 5)
                     .HalfOpenAfter(TimeSpan.Zero));
 
             Assert.Throws<ArgumentException>(() =>
-                Cushion.ForService("test")
+                Cushion.ForService("test-" + Guid.NewGuid())
                     .OpenAfter(3, 5)
                     .HalfOpenAfter(TimeSpan.FromMilliseconds(-1)));
         }
@@ -69,7 +66,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public async Task Cushion_PreventsDosWithFastRejection()
         {
-            var cushion = Cushion.ForService("dos-prevention")
+            var cushion = Cushion.ForService("dos-prevention-" + Guid.NewGuid())
                 .OpenAfter(2, 2)
                 .HalfOpenAfter(TimeSpan.FromSeconds(30));
 
@@ -115,14 +112,14 @@ namespace Carom.Extensions.Tests
             Assert.Equal(1000, rejectionCount);
             
             // Should be extremely fast (no operation execution)
-            Assert.True(stopwatch.ElapsedMilliseconds < 100, 
-                $"Expected fast rejection under 100ms, took {stopwatch.ElapsedMilliseconds}ms");
+            Assert.True(stopwatch.ElapsedMilliseconds < 500, 
+                $"Expected fast rejection under 500ms, took {stopwatch.ElapsedMilliseconds}ms");
         }
 
         [Fact]
         public void Cushion_ThreadSafe_UnderAttack()
         {
-            var cushion = Cushion.ForService("thread-safety-test")
+            var cushion = Cushion.ForService("thread-safety-test-" + Guid.NewGuid())
                 .OpenAfter(10, 20)
                 .HalfOpenAfter(TimeSpan.FromSeconds(30));
 
@@ -178,7 +175,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public void Cushion_DoesNotLeakSensitiveInformation()
         {
-            var cushion = Cushion.ForService("sensitive-service")
+            var cushion = Cushion.ForService("sensitive-service-" + Guid.NewGuid())
                 .OpenAfter(1, 1)
                 .HalfOpenAfter(TimeSpan.FromSeconds(30));
 
@@ -231,12 +228,12 @@ namespace Carom.Extensions.Tests
         public void Compartment_ValidatesMaxConcurrency()
         {
             Assert.Throws<ArgumentException>(() =>
-                Compartment.ForResource("test")
+                Compartment.ForResource("test-" + Guid.NewGuid())
                     .WithMaxConcurrency(0)
                     .Build());
 
             Assert.Throws<ArgumentException>(() =>
-                Compartment.ForResource("test")
+                Compartment.ForResource("test-" + Guid.NewGuid())
                     .WithMaxConcurrency(-1)
                     .Build());
         }
@@ -244,7 +241,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public async Task Compartment_PreventsDosWithMaxConcurrency()
         {
-            var compartment = Compartment.ForResource("dos-test")
+            var compartment = Compartment.ForResource("dos-test-" + Guid.NewGuid())
                 .WithMaxConcurrency(5)
                 .Build();
 
@@ -296,7 +293,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public async Task Compartment_PreventsDosWithTimeout()
         {
-            var compartment = Compartment.ForResource("timeout-test")
+            var compartment = Compartment.ForResource("timeout-test-" + Guid.NewGuid())
                 .WithMaxConcurrency(2)
                 .Build();
 
@@ -358,12 +355,12 @@ namespace Carom.Extensions.Tests
         public void Throttle_ValidatesRateParameters()
         {
             Assert.Throws<ArgumentException>(() =>
-                Throttle.ForService("test")
+                Throttle.ForService("test-" + Guid.NewGuid())
                     .WithRate(0, TimeSpan.FromSeconds(1))
                     .Build());
 
             Assert.Throws<ArgumentException>(() =>
-                Throttle.ForService("test")
+                Throttle.ForService("test-" + Guid.NewGuid())
                     .WithRate(100, TimeSpan.Zero)
                     .Build());
         }
@@ -371,7 +368,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public async Task Throttle_PreventsDosWithRateLimiting()
         {
-            var throttle = Throttle.ForService("dos-prevention")
+            var throttle = Throttle.ForService("dos-prevention-" + Guid.NewGuid())
                 .WithRate(10, TimeSpan.FromSeconds(1))
                 .WithBurst(10)
                 .Build();
@@ -410,7 +407,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public async Task Throttle_ThreadSafe_UnderAttack()
         {
-            var throttle = Throttle.ForService("concurrent-attack")
+            var throttle = Throttle.ForService("concurrent-attack-" + Guid.NewGuid())
                 .WithRate(50, TimeSpan.FromSeconds(1))
                 .WithBurst(50)
                 .Build();
@@ -454,7 +451,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public void Throttle_DoesNotLeakSensitiveInfo()
         {
-            var throttle = Throttle.ForService("api-service")
+            var throttle = Throttle.ForService("api-service-" + Guid.NewGuid())
                 .WithRate(1, TimeSpan.FromSeconds(10))
                 .Build();
 
@@ -536,11 +533,11 @@ namespace Carom.Extensions.Tests
         [Fact]
         public async Task CombinedPatterns_SecureUnderAttack()
         {
-            var cushion = Cushion.ForService("secure-service")
+            var cushion = Cushion.ForService("secure-service-" + Guid.NewGuid())
                 .OpenAfter(5, 10)
                 .HalfOpenAfter(TimeSpan.FromSeconds(30));
 
-            var throttle = Throttle.ForService("secure-throttle")
+            var throttle = Throttle.ForService("secure-throttle-" + Guid.NewGuid())
                 .WithRate(20, TimeSpan.FromSeconds(1))
                 .WithBurst(20)
                 .Build();

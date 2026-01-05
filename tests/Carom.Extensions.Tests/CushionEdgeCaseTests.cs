@@ -15,7 +15,6 @@ namespace Carom.Extensions.Tests
     {
         public CushionEdgeCaseTests()
         {
-            CushionStore.Clear();
         }
 
         #region Boundary Condition Tests
@@ -23,7 +22,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public void Cushion_WithMinimumThreshold_OpensAfterOneFailure()
         {
-            var cushion = Cushion.ForService("min-threshold")
+            var cushion = Cushion.ForService("min-threshold-" + Guid.NewGuid())
                 .OpenAfter(1, 1)
                 .HalfOpenAfter(TimeSpan.FromSeconds(1));
 
@@ -42,7 +41,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public void Cushion_WithLargeWindow_TracksCorrectly()
         {
-            var cushion = Cushion.ForService("large-window")
+            var cushion = Cushion.ForService("large-window-" + Guid.NewGuid())
                 .OpenAfter(50, 100)
                 .HalfOpenAfter(TimeSpan.FromSeconds(30));
 
@@ -70,7 +69,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public void Cushion_WithVeryShortDelay_TransitionsQuickly()
         {
-            var cushion = Cushion.ForService("short-delay")
+            var cushion = Cushion.ForService("short-delay-" + Guid.NewGuid())
                 .OpenAfter(2, 2)
                 .HalfOpenAfter(TimeSpan.FromMilliseconds(1));
 
@@ -105,7 +104,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public async Task Cushion_ConcurrentRequests_DoNotCorruptState()
         {
-            var cushion = Cushion.ForService("concurrent-test")
+            var cushion = Cushion.ForService("concurrent-test-" + Guid.NewGuid())
                 .OpenAfter(5, 10)
                 .HalfOpenAfter(TimeSpan.FromSeconds(30));
 
@@ -151,7 +150,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public void Cushion_RaceCondition_HandlesMultipleThreadsOpeningCircuit()
         {
-            var cushion = Cushion.ForService("race-open")
+            var cushion = Cushion.ForService("race-open-" + Guid.NewGuid())
                 .OpenAfter(3, 5)
                 .HalfOpenAfter(TimeSpan.FromSeconds(30));
 
@@ -200,7 +199,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public async Task Cushion_HalfOpenState_AllowsOnlyOneRequest()
         {
-            var cushion = Cushion.ForService("half-open-test")
+            var cushion = Cushion.ForService("half-open-test-" + Guid.NewGuid())
                 .OpenAfter(2, 2)
                 .HalfOpenAfter(TimeSpan.FromMilliseconds(50));
 
@@ -235,7 +234,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public async Task Cushion_HalfOpenState_FailureReopensCircuit()
         {
-            var cushion = Cushion.ForService("half-open-fail")
+            var cushion = Cushion.ForService("half-open-fail-" + Guid.NewGuid())
                 .OpenAfter(2, 2)
                 .HalfOpenAfter(TimeSpan.FromMilliseconds(50));
 
@@ -283,11 +282,11 @@ namespace Carom.Extensions.Tests
         [Fact]
         public void Cushion_DifferentServices_DontInterfere()
         {
-            var cushion1 = Cushion.ForService("service-1")
+            var cushion1 = Cushion.ForService("service-1-" + Guid.NewGuid())
                 .OpenAfter(2, 2)
                 .HalfOpenAfter(TimeSpan.FromSeconds(30));
 
-            var cushion2 = Cushion.ForService("service-2")
+            var cushion2 = Cushion.ForService("service-2-" + Guid.NewGuid())
                 .OpenAfter(2, 2)
                 .HalfOpenAfter(TimeSpan.FromSeconds(30));
 
@@ -319,11 +318,12 @@ namespace Carom.Extensions.Tests
         [Fact]
         public void Cushion_SameServiceKey_SharesState()
         {
-            var cushion1 = Cushion.ForService("shared-service")
+            var serviceKey = "shared-service-" + Guid.NewGuid();
+            var cushion1 = Cushion.ForService(serviceKey)
                 .OpenAfter(2, 2)
                 .HalfOpenAfter(TimeSpan.FromSeconds(30));
 
-            var cushion2 = Cushion.ForService("shared-service")
+            var cushion2 = Cushion.ForService(serviceKey)
                 .OpenAfter(2, 2)
                 .HalfOpenAfter(TimeSpan.FromSeconds(30));
 
@@ -441,7 +441,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public void Cushion_WithRetry_CountsAllAttempts()
         {
-            var cushion = Cushion.ForService("retry-integration")
+            var cushion = Cushion.ForService("retry-integration-" + Guid.NewGuid())
                 .OpenAfter(5, 10)
                 .HalfOpenAfter(TimeSpan.FromSeconds(30));
 
@@ -470,7 +470,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public async Task Cushion_WithAsyncRetry_HandlesTimeout()
         {
-            var cushion = Cushion.ForService("async-timeout")
+            var cushion = Cushion.ForService("async-timeout-" + Guid.NewGuid())
                 .OpenAfter(5, 10)
                 .HalfOpenAfter(TimeSpan.FromSeconds(30));
 
@@ -498,7 +498,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public async Task Cushion_HighVolumeRequests_MaintainsAccuracy()
         {
-            var cushion = Cushion.ForService("high-volume")
+            var cushion = Cushion.ForService("high-volume-" + Guid.NewGuid())
                 .OpenAfter(50, 100)
                 .HalfOpenAfter(TimeSpan.FromSeconds(30));
 

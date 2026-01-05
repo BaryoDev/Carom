@@ -25,7 +25,7 @@ namespace Carom.Extensions
         /// </summary>
         public void Add(T item)
         {
-            var idx = Interlocked.Increment(ref _index) - 1;
+            var idx = (Interlocked.Increment(ref _index) - 1) & int.MaxValue;
             _buffer[idx % _buffer.Length] = item;
         }
 

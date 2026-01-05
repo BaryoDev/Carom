@@ -33,7 +33,7 @@ namespace Carom
             bool disableJitter = false)
         {
             if (action == null) throw new ArgumentNullException(nameof(action));
-
+            retries = Math.Max(0, retries);
             var delay = baseDelay ?? JitterStrategy.DefaultBaseDelay;
             var previousDelay = delay;
             Exception? lastException = null;
@@ -79,7 +79,7 @@ namespace Carom
             bool disableJitter = false)
         {
             if (action == null) throw new ArgumentNullException(nameof(action));
-
+            retries = Math.Max(0, retries);
             var delay = baseDelay ?? JitterStrategy.DefaultBaseDelay;
             var previousDelay = delay;
             Exception? lastException = null;
@@ -150,6 +150,7 @@ namespace Carom
             CancellationToken ct = default)
         {
             if (action == null) throw new ArgumentNullException(nameof(action));
+            retries = Math.Max(0, retries);
 
             // Create linked token source ONLY if timeout specified
             using var timeoutCts = timeout.HasValue
@@ -172,7 +173,16 @@ namespace Carom
 
                 try
                 {
-                    return await action().ConfigureAwait(false);
+                    var task = action();
+                    var completedTask = await Task.WhenAny(task, Task.Delay(-1, ct)).ConfigureAwait(false);
+
+                    if (completedTask == task)
+                    {
+                        return await task.ConfigureAwait(false);
+                    }
+                    
+                    // Task.Delay completed, which means ct was cancelled (timeout or manual)
+                    throw new OperationCanceledException(ct);
                 }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested)
                 {
@@ -215,6 +225,7 @@ namespace Carom
             CancellationToken ct = default)
         {
             if (action == null) throw new ArgumentNullException(nameof(action));
+            retries = Math.Max(0, retries);
 
             // Create linked token source ONLY if timeout specified
             using var timeoutCts = timeout.HasValue
@@ -237,8 +248,16 @@ namespace Carom
 
                 try
                 {
-                    await action().ConfigureAwait(false);
-                    return;
+                    var task = action();
+                    var completedTask = await Task.WhenAny(task, Task.Delay(-1, ct)).ConfigureAwait(false);
+
+                    if (completedTask == task)
+                    {
+                        await task.ConfigureAwait(false);
+                        return;
+                    }
+
+                    throw new OperationCanceledException(ct);
                 }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested)
                 {

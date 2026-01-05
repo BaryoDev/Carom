@@ -106,7 +106,7 @@ namespace Carom.Extensions
         {
             _maxRequests = maxRequests;
             _timeWindow = per;
-            _burstSize = Math.Max(_burstSize, maxRequests);
+            _burstSize = maxRequests; // Default burst to max requests
             return this;
         }
 

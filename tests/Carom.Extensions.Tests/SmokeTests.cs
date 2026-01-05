@@ -13,9 +13,6 @@ namespace Carom.Extensions.Tests
     {
         public SmokeTests()
         {
-            CushionStore.Clear();
-            CompartmentStore.Clear();
-            ThrottleStore.Clear();
         }
 
         #region Circuit Breaker Smoke Tests
@@ -23,7 +20,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public void Smoke_CircuitBreaker_ClosedState_Works()
         {
-            var cushion = Cushion.ForService("smoke-test-cb")
+            var cushion = Cushion.ForService("smoke-test-cb-" + Guid.NewGuid())
                 .OpenAfter(5, 10)
                 .HalfOpenAfter(TimeSpan.FromSeconds(30));
             
@@ -34,7 +31,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public void Smoke_CircuitBreaker_OpensOnFailures()
         {
-            var cushion = Cushion.ForService("smoke-test-open")
+            var cushion = Cushion.ForService("smoke-test-open-" + Guid.NewGuid())
                 .OpenAfter(2, 2)
                 .HalfOpenAfter(TimeSpan.FromSeconds(30));
             
@@ -63,7 +60,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public async Task Smoke_Bulkhead_AllowsExecution()
         {
-            var compartment = Compartment.ForResource("smoke-test-bulkhead")
+            var compartment = Compartment.ForResource("smoke-test-bulkhead-" + Guid.NewGuid())
                 .WithMaxConcurrency(10)
                 .Build();
             
@@ -82,20 +79,21 @@ namespace Carom.Extensions.Tests
         [Fact]
         public void Smoke_Bulkhead_RejectsWhenFull()
         {
-            var compartment = Compartment.ForResource("smoke-test-full")
+            var compartment = Compartment.ForResource("smoke-test-full-" + Guid.NewGuid())
                 .WithMaxConcurrency(1)
                 .Build();
             
             var semaphore = new System.Threading.SemaphoreSlim(0);
+            var entrySignal = new System.Threading.ManualResetEventSlim(false);
             
             // Fill the compartment
             var task = Task.Run(() =>
                 CaromCompartmentExtensions.Shot<int>(
-                    () => { semaphore.Wait(); return 1; },
+                    () => { entrySignal.Set(); semaphore.Wait(); return 1; },
                     compartment,
                     retries: 0));
             
-            System.Threading.Thread.Sleep(50);
+            entrySignal.Wait(); // Wait until first task has acquired the slot
             
             // Second call should be rejected
             Assert.Throws<CompartmentFullException>(() =>
@@ -112,7 +110,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public void Smoke_RateLimiting_AllowsRequests()
         {
-            var throttle = Throttle.ForService("smoke-test-throttle")
+            var throttle = Throttle.ForService("smoke-test-throttle-" + Guid.NewGuid())
                 .WithRate(100, TimeSpan.FromSeconds(1))
                 .Build();
             
@@ -123,7 +121,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public void Smoke_RateLimiting_EnforcesLimit()
         {
-            var throttle = Throttle.ForService("smoke-test-limit")
+            var throttle = Throttle.ForService("smoke-test-limit-" + Guid.NewGuid())
                 .WithRate(2, TimeSpan.FromSeconds(10))
                 .WithBurst(2)
                 .Build();
@@ -174,11 +172,11 @@ namespace Carom.Extensions.Tests
         [Fact]
         public async Task Smoke_AllPatterns_WorkTogether()
         {
-            var cushion = Cushion.ForService("smoke-integration")
+            var cushion = Cushion.ForService("smoke-integration-" + Guid.NewGuid())
                 .OpenAfter(10, 20)
                 .HalfOpenAfter(TimeSpan.FromSeconds(30));
             
-            var throttle = Throttle.ForService("smoke-integration-throttle")
+            var throttle = Throttle.ForService("smoke-integration-throttle-" + Guid.NewGuid())
                 .WithRate(100, TimeSpan.FromSeconds(1))
                 .Build();
             
@@ -203,7 +201,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public async Task Smoke_PatternsWithFallback_Works()
         {
-            var cushion = Cushion.ForService("smoke-fallback")
+            var cushion = Cushion.ForService("smoke-fallback-" + Guid.NewGuid())
                 .OpenAfter(5, 10)
                 .HalfOpenAfter(TimeSpan.FromSeconds(30));
             

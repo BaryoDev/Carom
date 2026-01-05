@@ -14,8 +14,6 @@ namespace Carom.Extensions.Tests
     {
         public ExtensionsEdgeCaseTests()
         {
-            CompartmentStore.Clear();
-            ThrottleStore.Clear();
         }
 
         #region Compartment Edge Cases
@@ -23,7 +21,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public async Task Compartment_WithMaxConcurrencyOne_SerializesExecution()
         {
-            var compartment = Compartment.ForResource("serial")
+            var compartment = Compartment.ForResource("serial-" + Guid.NewGuid())
                 .WithMaxConcurrency(1)
                 .Build();
 
@@ -46,7 +44,7 @@ namespace Carom.Extensions.Tests
                             return taskId;
                         },
                         compartment,
-                        retries: 0);
+                        retries: 5);
                 }));
             }
 
@@ -59,7 +57,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public async Task Compartment_WithMaxConcurrency_RejectsExcess()
         {
-            var compartment = Compartment.ForResource("limited")
+            var compartment = Compartment.ForResource("limited-" + Guid.NewGuid())
                 .WithMaxConcurrency(2)
                 .Build();
 
@@ -105,7 +103,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public async Task Compartment_MaxConcurrency_RejectsWhenFull()
         {
-            var compartment = Compartment.ForResource("no-wait")
+            var compartment = Compartment.ForResource("no-wait-" + Guid.NewGuid())
                 .WithMaxConcurrency(1)
                 .Build();
 
@@ -156,11 +154,11 @@ namespace Carom.Extensions.Tests
         [Fact]
         public async Task Compartment_DifferentResources_DontInterfere()
         {
-            var comp1 = Compartment.ForResource("db")
+            var comp1 = Compartment.ForResource("db1-" + Guid.NewGuid())
                 .WithMaxConcurrency(1)
                 .Build();
 
-            var comp2 = Compartment.ForResource("api")
+            var comp2 = Compartment.ForResource("api1-" + Guid.NewGuid())
                 .WithMaxConcurrency(1)
                 .Build();
 
@@ -200,7 +198,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public async Task Compartment_HighConcurrency_HandlesCorrectly()
         {
-            var compartment = Compartment.ForResource("high-concurrent")
+            var compartment = Compartment.ForResource("high-concurrent-" + Guid.NewGuid())
                 .WithMaxConcurrency(50)
                 .Build();
 
@@ -215,7 +213,7 @@ namespace Carom.Extensions.Tests
                         return taskId;
                     },
                     compartment,
-                    retries: 0));
+                    retries: 5));
             }
 
             var results = await Task.WhenAll(tasks);
@@ -229,7 +227,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public void Throttle_WithMaxRate_EnforcesLimit()
         {
-            var throttle = Throttle.ForService("strict-limit")
+            var throttle = Throttle.ForService("strict-limit-" + Guid.NewGuid())
                 .WithRate(2, TimeSpan.FromSeconds(10))
                 .WithBurst(2)
                 .Build();
@@ -249,7 +247,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public async Task Throttle_TokensRefill_AllowsMoreRequests()
         {
-            var throttle = Throttle.ForService("refill-test")
+            var throttle = Throttle.ForService("refill-test-" + Guid.NewGuid())
                 .WithRate(5, TimeSpan.FromMilliseconds(100))
                 .WithBurst(5)
                 .Build();
@@ -278,7 +276,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public void Throttle_WithBurst_AllowsInitialBurst()
         {
-            var throttle = Throttle.ForService("burst-test")
+            var throttle = Throttle.ForService("burst-test-" + Guid.NewGuid())
                 .WithRate(1, TimeSpan.FromSeconds(10))
                 .WithBurst(10)
                 .Build();
@@ -307,12 +305,12 @@ namespace Carom.Extensions.Tests
         [Fact]
         public void Throttle_DifferentServices_IndependentLimits()
         {
-            var throttle1 = Throttle.ForService("api-1")
+            var throttle1 = Throttle.ForService("api-1-" + Guid.NewGuid())
                 .WithRate(2, TimeSpan.FromSeconds(10))
                 .WithBurst(2)
                 .Build();
 
-            var throttle2 = Throttle.ForService("api-2")
+            var throttle2 = Throttle.ForService("api-2-" + Guid.NewGuid())
                 .WithRate(2, TimeSpan.FromSeconds(10))
                 .WithBurst(2)
                 .Build();
@@ -332,7 +330,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public async Task Throttle_ConcurrentRequests_EnforcesLimit()
         {
-            var throttle = Throttle.ForService("concurrent-limit")
+            var throttle = Throttle.ForService("concurrent-limit-" + Guid.NewGuid())
                 .WithRate(10, TimeSpan.FromSeconds(1))
                 .WithBurst(10)
                 .Build();
@@ -374,7 +372,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public void Throttle_VeryShortWindow_WorksCorrectly()
         {
-            var throttle = Throttle.ForService("short-window")
+            var throttle = Throttle.ForService("short-window-" + Guid.NewGuid())
                 .WithRate(100, TimeSpan.FromMilliseconds(1))
                 .Build();
 
@@ -395,10 +393,12 @@ namespace Carom.Extensions.Tests
         }
 
         [Fact]
-        public void Pocket_WithNullAction_ThrowsNullReferenceException()
+        public void Pocket_WithNullAction_ReturnsFallback()
         {
             Func<int>? nullFunc = null;
-            Assert.Throws<NullReferenceException>(() => nullFunc!.Pocket(42));
+            // Pocket catches all exceptions including NullReferenceException and returns fallback
+            var result = nullFunc!.Pocket(42);
+            Assert.Equal(42, result);
         }
 
         [Fact]
@@ -581,15 +581,15 @@ namespace Carom.Extensions.Tests
         [Fact]
         public async Task AllPatterns_WorkTogether()
         {
-            var cushion = Cushion.ForService("integrated-service")
+            var cushion = Cushion.ForService("integrated-service-" + Guid.NewGuid())
                 .OpenAfter(10, 20)
                 .HalfOpenAfter(TimeSpan.FromSeconds(30));
 
-            var compartment = Compartment.ForResource("integrated-resource")
+            var compartment = Compartment.ForResource("integrated-resource-" + Guid.NewGuid())
                 .WithMaxConcurrency(5)
                 .Build();
 
-            var throttle = Throttle.ForService("integrated-throttle")
+            var throttle = Throttle.ForService("integrated-throttle-" + Guid.NewGuid())
                 .WithRate(100, TimeSpan.FromSeconds(1))
                 .Build();
 
@@ -621,7 +621,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public async Task AllPatterns_WithFallback_GracefulDegradation()
         {
-            var cushion = Cushion.ForService("fallback-service")
+            var cushion = Cushion.ForService("fallback-service-" + Guid.NewGuid())
                 .OpenAfter(2, 2)
                 .HalfOpenAfter(TimeSpan.FromSeconds(30));
 

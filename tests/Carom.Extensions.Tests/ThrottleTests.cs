@@ -11,7 +11,6 @@ namespace Carom.Extensions.Tests
     {
         public ThrottleTests()
         {
-            ThrottleStore.Clear();
         }
 
         #region Configuration Tests
@@ -19,7 +18,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public void ForService_CreatesBuilder_WithValidServiceKey()
         {
-            var builder = Throttle.ForService("test-service");
+            var builder = Throttle.ForService("test-service-" + Guid.NewGuid());
             Assert.NotNull(builder);
         }
 
@@ -57,7 +56,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public async Task ExecuteAsync_AllowsRequests_WithinRateLimit()
         {
-            var throttle = Throttle.ForService("within-limit-test")
+            var throttle = Throttle.ForService("within-limit-test-" + Guid.NewGuid())
                 .WithRate(10, TimeSpan.FromSeconds(1))
                 .Build();
 
@@ -80,7 +79,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public void Execute_ThrowsThrottledException_WhenRateLimitExceeded()
         {
-            var throttle = Throttle.ForService("exceeded-test")
+            var throttle = Throttle.ForService("exceeded-test-" + Guid.NewGuid())
                 .WithRate(2, TimeSpan.FromSeconds(10))
                 .WithBurst(2)  // Limit burst to match rate
                 .Build();
@@ -95,14 +94,14 @@ namespace Carom.Extensions.Tests
                 CaromThrottleExtensions.Shot(() => 3, throttle, retries: 0);
             });
 
-            Assert.Equal("exceeded-test", ex.ServiceKey);
+            Assert.StartsWith("exceeded-test-", ex.ServiceKey);
             Assert.Equal(2, ex.MaxRequests);
         }
 
         [Fact]
         public async Task ExecuteAsync_EnforcesRateLimit_Eventually()
         {
-            var throttle = Throttle.ForService("limit-test")
+            var throttle = Throttle.ForService("limit-test-" + Guid.NewGuid())
                 .WithRate(3, TimeSpan.FromSeconds(1))
                 .WithBurst(3)
                 .Build();
@@ -148,7 +147,7 @@ namespace Carom.Extensions.Tests
         [Fact]
         public async Task Shot_WithBounce_WorksWithThrottle()
         {
-            var throttle = Throttle.ForService("bounce-test")
+            var throttle = Throttle.ForService("bounce-test-" + Guid.NewGuid())
                 .WithRate(100, TimeSpan.FromSeconds(1))
                 .Build();
 
