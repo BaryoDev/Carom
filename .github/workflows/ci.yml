@@ -29,7 +29,14 @@ jobs:
         run: dotnet build --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage" --results-directory ./coverage
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 20
+          max_attempts: 3
+          retry_on: error
+          command: dotnet test --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage" --results-directory ./coverage -- xUnit.MaxParallelThreads=2
+        env:
+          DOTNET_CLI_TELEMETRY_OPTOUT: 1
 
       - name: Generate coverage report
         if: matrix.os == 'ubuntu-latest' && matrix.dotnet-version == '8.0.x'

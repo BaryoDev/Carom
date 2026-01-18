@@ -21,4 +21,8 @@
     <ProjectReference Include="../../src/Carom.Extensions/Carom.Extensions.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
