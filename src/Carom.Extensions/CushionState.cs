@@ -79,13 +79,32 @@ namespace Carom.Extensions
         /// </summary>
         public bool CanAttemptReset(TimeSpan halfOpenDelay)
         {
-            var openedAt = new DateTime(Volatile.Read(ref _openedAtTicks));
-            return DateTime.UtcNow - openedAt >= halfOpenDelay;
+            var openedAtTicks = Volatile.Read(ref _openedAtTicks);
+            if (openedAtTicks == 0) return false;
+
+            var elapsed = DateTime.UtcNow.Ticks - openedAtTicks;
+            return elapsed >= halfOpenDelay.Ticks;
         }
 
         /// <summary>
-        /// Transitions circuit to half-open state.
+        /// Attempts to atomically transition circuit from Open to HalfOpen state.
+        /// Returns true if this thread successfully transitioned, false otherwise.
+        /// Only the thread that returns true should execute the test request.
         /// </summary>
+        public bool TryTransitionToHalfOpen()
+        {
+            // Atomically try to change from Open to HalfOpen
+            // Only one thread will succeed
+            return Interlocked.CompareExchange(
+                ref _state,
+                (int)CircuitState.HalfOpen,
+                (int)CircuitState.Open) == (int)CircuitState.Open;
+        }
+
+        /// <summary>
+        /// Transitions circuit to half-open state (legacy method for compatibility).
+        /// </summary>
+        [Obsolete("Use TryTransitionToHalfOpen() instead for proper atomic behavior")]
         public void TransitionToHalfOpen()
         {
             Interlocked.CompareExchange(ref _state, (int)CircuitState.HalfOpen, (int)CircuitState.Open);

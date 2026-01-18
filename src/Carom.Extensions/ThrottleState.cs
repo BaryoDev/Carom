@@ -6,14 +6,17 @@ namespace Carom.Extensions
 {
     /// <summary>
     /// Token bucket implementation for rate limiting.
-    /// Uses lock-free operations for high performance.
+    /// Uses lock-free operations with bounded spin and backoff for high performance.
     /// </summary>
     internal class ThrottleState
     {
+        private const int MaxSpinIterations = 10;
+        private const int SpinWaitIterations = 4;
+
         private readonly int _maxRequests;
         private readonly int _burstSize;
         private readonly long _refillIntervalTicks;
-        private readonly Stopwatch _stopwatch;
+        private readonly long _startTicks; // Use DateTime.UtcNow.Ticks instead of Stopwatch for zero allocation
 
         private long _tokens; // Fixed-point: actual tokens * 1000
         private long _lastRefillTicks;
@@ -22,23 +25,34 @@ namespace Carom.Extensions
         {
             _maxRequests = maxRequests;
             _burstSize = burstSize;
-            _refillIntervalTicks = timeWindow.Ticks / maxRequests; // Ticks per token
-            _stopwatch = Stopwatch.StartNew();
+
+            // Prevent division by zero
+            if (timeWindow.Ticks == 0 || maxRequests == 0)
+            {
+                _refillIntervalTicks = 1;
+            }
+            else
+            {
+                _refillIntervalTicks = Math.Max(1, timeWindow.Ticks / maxRequests);
+            }
+
+            _startTicks = DateTime.UtcNow.Ticks;
 
             // Start with full bucket
             _tokens = (long)burstSize * 1000;
-            _lastRefillTicks = _stopwatch.Elapsed.Ticks;
+            _lastRefillTicks = 0;
         }
 
         /// <summary>
         /// Attempts to acquire a token from the bucket.
         /// Returns true if token acquired, false if rate limit exceeded.
+        /// Uses bounded spin with backoff to prevent CPU starvation.
         /// </summary>
         public bool TryAcquire()
         {
             RefillTokens();
 
-            while (true)
+            for (int spin = 0; spin < MaxSpinIterations; spin++)
             {
                 var currentTokens = Volatile.Read(ref _tokens);
 
@@ -55,16 +69,28 @@ namespace Carom.Extensions
                     return true;
                 }
 
-                // CAS failed, retry
+                // CAS failed, apply backoff before retry
+                if (spin < SpinWaitIterations)
+                {
+                    Thread.SpinWait(1 << spin);
+                }
+                else
+                {
+                    Thread.Yield();
+                }
             }
+
+            // Exceeded max spin iterations, treat as throttled
+            return false;
         }
 
         /// <summary>
         /// Refills tokens based on elapsed time.
+        /// Uses bounded spin to prevent CPU starvation.
         /// </summary>
         private void RefillTokens()
         {
-            var currentTicks = _stopwatch.Elapsed.Ticks;
+            var currentTicks = DateTime.UtcNow.Ticks - _startTicks;
             var lastTicks = Volatile.Read(ref _lastRefillTicks);
             var elapsedTicks = currentTicks - lastTicks;
 
@@ -73,40 +99,83 @@ namespace Carom.Extensions
                 return; // Not enough time has passed
             }
 
-            // Calculate how many tokens to add
-            var tokensToAdd = (elapsedTicks / _refillIntervalTicks) * 1000;
+            // Calculate how many tokens to add (with overflow protection)
+            var intervalsElapsed = elapsedTicks / _refillIntervalTicks;
+            if (intervalsElapsed > int.MaxValue)
+            {
+                intervalsElapsed = int.MaxValue;
+            }
 
+            var tokensToAdd = intervalsElapsed * 1000;
             if (tokensToAdd <= 0)
             {
                 return;
             }
 
             // Calculate new last refill time (aligned to token intervals)
-            var intervalsElapsed = elapsedTicks / _refillIntervalTicks;
             var newLastTicks = lastTicks + (intervalsElapsed * _refillIntervalTicks);
 
-            // Try to update last refill time
-            if (Interlocked.CompareExchange(ref _lastRefillTicks, newLastTicks, lastTicks) != lastTicks)
+            // Try to update last refill time with bounded spin
+            for (int spin = 0; spin < MaxSpinIterations; spin++)
             {
-                return; // Another thread is refilling
-            }
-
-            // Add tokens up to burst size
-            while (true)
-            {
-                var currentTokens = Volatile.Read(ref _tokens);
-                var maxTokens = (long)_burstSize * 1000;
-                var newTokens = Math.Min(currentTokens + tokensToAdd, maxTokens);
-
-                if (Interlocked.CompareExchange(ref _tokens, newTokens, currentTokens) == currentTokens)
+                if (Interlocked.CompareExchange(ref _lastRefillTicks, newLastTicks, lastTicks) == lastTicks)
                 {
-                    break;
+                    // Won the race, add tokens
+                    AddTokensWithSpin(tokensToAdd);
+                    return;
+                }
+
+                // Lost the race, re-read and check if still needed
+                lastTicks = Volatile.Read(ref _lastRefillTicks);
+                if (currentTicks - lastTicks < _refillIntervalTicks)
+                {
+                    return; // Someone else already refilled
+                }
+
+                // Recalculate
+                elapsedTicks = currentTicks - lastTicks;
+                intervalsElapsed = elapsedTicks / _refillIntervalTicks;
+                tokensToAdd = intervalsElapsed * 1000;
+                newLastTicks = lastTicks + (intervalsElapsed * _refillIntervalTicks);
+
+                if (spin >= SpinWaitIterations)
+                {
+                    Thread.Yield();
                 }
             }
         }
 
         /// <summary>
-        /// Gets the current number of available tokens (for testing).
+        /// Adds tokens to the bucket with bounded spin.
+        /// </summary>
+        private void AddTokensWithSpin(long tokensToAdd)
+        {
+            var maxTokens = (long)_burstSize * 1000;
+
+            for (int spin = 0; spin < MaxSpinIterations; spin++)
+            {
+                var currentTokens = Volatile.Read(ref _tokens);
+                var newTokens = Math.Min(currentTokens + tokensToAdd, maxTokens);
+
+                if (newTokens == currentTokens)
+                {
+                    return; // Already at max
+                }
+
+                if (Interlocked.CompareExchange(ref _tokens, newTokens, currentTokens) == currentTokens)
+                {
+                    return;
+                }
+
+                if (spin >= SpinWaitIterations)
+                {
+                    Thread.Yield();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets the current number of available tokens (for testing/monitoring).
         /// </summary>
         public double AvailableTokens
         {

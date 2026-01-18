@@ -152,16 +152,18 @@ namespace Carom
             if (action == null) throw new ArgumentNullException(nameof(action));
             retries = Math.Max(0, retries);
 
-            // Create linked token source ONLY if timeout specified
-            using var timeoutCts = timeout.HasValue
+            // Create linked token source if timeout specified OR if we have a real cancellation token
+            // This ensures we can properly clean up the delay task
+            using var timeoutCts = (timeout.HasValue || ct.CanBeCanceled)
                 ? CancellationTokenSource.CreateLinkedTokenSource(ct)
                 : null;
 
-            if (timeoutCts != null)
+            if (timeout.HasValue && timeoutCts != null)
             {
-                timeoutCts.CancelAfter(timeout!.Value);
-                ct = timeoutCts.Token;
+                timeoutCts.CancelAfter(timeout.Value);
             }
+
+            var effectiveCt = timeoutCts?.Token ?? ct;
 
             var delay = baseDelay ?? JitterStrategy.DefaultBaseDelay;
             var previousDelay = delay;
@@ -169,22 +171,33 @@ namespace Carom
 
             for (int attempt = 0; attempt <= retries; attempt++)
             {
-                ct.ThrowIfCancellationRequested();
+                effectiveCt.ThrowIfCancellationRequested();
 
                 try
                 {
                     var task = action();
-                    var completedTask = await Task.WhenAny(task, Task.Delay(-1, ct)).ConfigureAwait(false);
 
-                    if (completedTask == task)
+                    // Only use WhenAny pattern if we have a cancellation mechanism
+                    // This prevents Task.Delay(-1, ct) from leaking when ct is never cancelled
+                    if (effectiveCt.CanBeCanceled)
                     {
+                        var completedTask = await Task.WhenAny(task, Task.Delay(-1, effectiveCt)).ConfigureAwait(false);
+
+                        if (completedTask == task)
+                        {
+                            return await task.ConfigureAwait(false);
+                        }
+
+                        // Task.Delay completed, which means effectiveCt was cancelled (timeout or manual)
+                        throw new OperationCanceledException(effectiveCt);
+                    }
+                    else
+                    {
+                        // No cancellation possible - just await directly (prevents leak)
                         return await task.ConfigureAwait(false);
                     }
-                    
-                    // Task.Delay completed, which means ct was cancelled (timeout or manual)
-                    throw new OperationCanceledException(ct);
                 }
-                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                catch (OperationCanceledException) when (effectiveCt.IsCancellationRequested)
                 {
                     throw;
                 }
@@ -206,7 +219,7 @@ namespace Carom
 
                     // Calculate and wait for the next delay
                     var nextDelay = JitterStrategy.CalculateDelay(delay, previousDelay, disableJitter, attempt + 1);
-                    await Task.Delay(nextDelay, ct).ConfigureAwait(false);
+                    await Task.Delay(nextDelay, effectiveCt).ConfigureAwait(false);
                     previousDelay = nextDelay;
                 }
             }
@@ -227,16 +240,18 @@ namespace Carom
             if (action == null) throw new ArgumentNullException(nameof(action));
             retries = Math.Max(0, retries);
 
-            // Create linked token source ONLY if timeout specified
-            using var timeoutCts = timeout.HasValue
+            // Create linked token source if timeout specified OR if we have a real cancellation token
+            // This ensures we can properly clean up the delay task
+            using var timeoutCts = (timeout.HasValue || ct.CanBeCanceled)
                 ? CancellationTokenSource.CreateLinkedTokenSource(ct)
                 : null;
 
-            if (timeoutCts != null)
+            if (timeout.HasValue && timeoutCts != null)
             {
-                timeoutCts.CancelAfter(timeout!.Value);
-                ct = timeoutCts.Token;
+                timeoutCts.CancelAfter(timeout.Value);
             }
+
+            var effectiveCt = timeoutCts?.Token ?? ct;
 
             var delay = baseDelay ?? JitterStrategy.DefaultBaseDelay;
             var previousDelay = delay;
@@ -244,22 +259,34 @@ namespace Carom
 
             for (int attempt = 0; attempt <= retries; attempt++)
             {
-                ct.ThrowIfCancellationRequested();
+                effectiveCt.ThrowIfCancellationRequested();
 
                 try
                 {
                     var task = action();
-                    var completedTask = await Task.WhenAny(task, Task.Delay(-1, ct)).ConfigureAwait(false);
 
-                    if (completedTask == task)
+                    // Only use WhenAny pattern if we have a cancellation mechanism
+                    // This prevents Task.Delay(-1, ct) from leaking when ct is never cancelled
+                    if (effectiveCt.CanBeCanceled)
                     {
+                        var completedTask = await Task.WhenAny(task, Task.Delay(-1, effectiveCt)).ConfigureAwait(false);
+
+                        if (completedTask == task)
+                        {
+                            await task.ConfigureAwait(false);
+                            return;
+                        }
+
+                        throw new OperationCanceledException(effectiveCt);
+                    }
+                    else
+                    {
+                        // No cancellation possible - just await directly (prevents leak)
                         await task.ConfigureAwait(false);
                         return;
                     }
-
-                    throw new OperationCanceledException(ct);
                 }
-                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                catch (OperationCanceledException) when (effectiveCt.IsCancellationRequested)
                 {
                     throw;
                 }
@@ -271,7 +298,7 @@ namespace Carom
                     if (attempt >= retries) throw;
 
                     var nextDelay = JitterStrategy.CalculateDelay(delay, previousDelay, disableJitter, attempt + 1);
-                    await Task.Delay(nextDelay, ct).ConfigureAwait(false);
+                    await Task.Delay(nextDelay, effectiveCt).ConfigureAwait(false);
                     previousDelay = nextDelay;
                 }
             }

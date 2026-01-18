@@ -54,6 +54,7 @@ namespace Carom.Extensions
 
         /// <summary>
         /// Executes a synchronous action with circuit breaker protection.
+        /// Uses atomic state transitions to ensure only one thread executes the test request in half-open state.
         /// </summary>
         internal T Execute<T>(Func<T> action)
         {
@@ -86,35 +87,56 @@ namespace Carom.Extensions
             {
                 if (state.CanAttemptReset(HalfOpenDelay))
                 {
-                    state.TransitionToHalfOpen();
+                    // Atomically try to transition to half-open
+                    // Only one thread will succeed and execute the test request
+                    if (state.TryTransitionToHalfOpen())
+                    {
+                        // This thread won the race - execute test request
+                        return ExecuteHalfOpenTest(state, action);
+                    }
+                    // Lost the race - another thread is testing
+                    // Fall through to check if still open
                 }
-                else
+
+                // Still open or lost the race
+                if (state.State == CircuitState.Open)
                 {
                     throw new CircuitOpenException(ServiceKey);
                 }
             }
 
-            // Half-open: test with one request
+            // Half-open: only the thread that transitioned should execute
+            // Other threads arriving here should be rejected
             if (state.State == CircuitState.HalfOpen)
             {
-                try
-                {
-                    var result = action();
-                    state.Close(); // Success! Close circuit
-                    return result;
-                }
-                catch
-                {
-                    state.Open(); // Failed, reopen
-                    throw;
-                }
+                // If we're here without having won the transition, reject
+                throw new CircuitOpenException(ServiceKey);
             }
 
             throw new InvalidOperationException($"Invalid circuit state: {state.State}");
         }
 
         /// <summary>
+        /// Executes the test request in half-open state.
+        /// </summary>
+        private T ExecuteHalfOpenTest<T>(CushionState state, Func<T> action)
+        {
+            try
+            {
+                var result = action();
+                state.Close(); // Success! Close circuit
+                return result;
+            }
+            catch
+            {
+                state.Open(); // Failed, reopen
+                throw;
+            }
+        }
+
+        /// <summary>
         /// Executes an asynchronous action with circuit breaker protection.
+        /// Uses atomic state transitions to ensure only one thread executes the test request in half-open state.
         /// </summary>
         internal async Task<T> ExecuteAsync<T>(Func<Task<T>> action)
         {
@@ -147,31 +169,51 @@ namespace Carom.Extensions
             {
                 if (state.CanAttemptReset(HalfOpenDelay))
                 {
-                    state.TransitionToHalfOpen();
+                    // Atomically try to transition to half-open
+                    // Only one thread will succeed and execute the test request
+                    if (state.TryTransitionToHalfOpen())
+                    {
+                        // This thread won the race - execute test request
+                        return await ExecuteHalfOpenTestAsync(state, action).ConfigureAwait(false);
+                    }
+                    // Lost the race - another thread is testing
+                    // Fall through to check if still open
                 }
-                else
+
+                // Still open or lost the race
+                if (state.State == CircuitState.Open)
                 {
                     throw new CircuitOpenException(ServiceKey);
                 }
             }
 
-            // Half-open: test with one request
+            // Half-open: only the thread that transitioned should execute
+            // Other threads arriving here should be rejected
             if (state.State == CircuitState.HalfOpen)
             {
-                try
-                {
-                    var result = await action().ConfigureAwait(false);
-                    state.Close(); // Success! Close circuit
-                    return result;
-                }
-                catch
-                {
-                    state.Open(); // Failed, reopen
-                    throw;
-                }
+                // If we're here without having won the transition, reject
+                throw new CircuitOpenException(ServiceKey);
             }
 
             throw new InvalidOperationException($"Invalid circuit state: {state.State}");
+        }
+
+        /// <summary>
+        /// Executes the test request in half-open state asynchronously.
+        /// </summary>
+        private async Task<T> ExecuteHalfOpenTestAsync<T>(CushionState state, Func<Task<T>> action)
+        {
+            try
+            {
+                var result = await action().ConfigureAwait(false);
+                state.Close(); // Success! Close circuit
+                return result;
+            }
+            catch
+            {
+                state.Open(); // Failed, reopen
+                throw;
+            }
         }
     }
 
