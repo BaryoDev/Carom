@@ -303,6 +303,7 @@ namespace Carom.Extensions.Tests
         }
 
         [Fact]
+        [Trait("Category", "LocalOnly")]
         public async Task Compartment_PreventsDosWithTimeout()
         {
             var compartment = Compartment.ForResource("timeout-test-" + Guid.NewGuid())

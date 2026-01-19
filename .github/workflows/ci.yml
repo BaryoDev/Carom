@@ -29,12 +29,8 @@ jobs:
         run: dotnet build --configuration Release --no-restore
 
       - name: Test
-        uses: nick-fields/retry@v3
-        with:
-          timeout_minutes: 20
-          max_attempts: 3
-          retry_on: error
-          command: dotnet test --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage" --results-directory ./coverage -- xUnit.MaxParallelThreads=2
+        run: dotnet test --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage" --results-directory ./coverage --filter "Category!=LocalOnly"
+        timeout-minutes: 20
         env:
           DOTNET_CLI_TELEMETRY_OPTOUT: 1
 

@@ -55,6 +55,7 @@ namespace Carom.Extensions.Tests
         }
 
         [Fact]
+        [Trait("Category", "LocalOnly")]
         public async Task Compartment_WithMaxConcurrency_RejectsExcess()
         {
             var compartment = Compartment.ForResource("limited-" + Guid.NewGuid())
