@@ -4,7 +4,7 @@
 
 [![NuGet](https://img.shields.io/nuget/v/Carom.svg)](https://www.nuget.org/packages/Carom/)
 [![License](https://img.shields.io/badge/license-MPL--2.0-blue.svg)](LICENSE)
-[![Build](https://github.com/BaryoDev/Carom/workflows/Build%20and%20Test/badge.svg)](https://github.com/BaryoDev/Carom/actions)
+[![.NET](https://img.shields.io/badge/.NET-8.0%2B-512BD4)](https://dotnet.microsoft.com/)
 
 Carom is a zero-dependency resilience library that enforces best practices by default. Named after the billiards shot where the ball bounces before reaching its target, Carom helps your code gracefully handle failures.
 
