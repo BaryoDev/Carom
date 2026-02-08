@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 
 namespace Carom.Extensions
@@ -53,6 +51,7 @@ namespace Carom.Extensions
 
         /// <summary>
         /// Removes the least recently used entries when over capacity.
+        /// Uses allocation-free LruEvictionHelper instead of LINQ.
         /// </summary>
         private static void EvictLeastRecentlyUsed()
         {
@@ -73,16 +72,16 @@ namespace Carom.Extensions
                 // Calculate how many to remove (remove 10% to avoid frequent eviction)
                 var toRemove = Math.Max(1, States.Count - MaxSize + MaxSize / 10);
 
-                // Get the oldest entries
-                var oldestKeys = States
-                    .OrderBy(kvp => kvp.Value.LastAccessTicks)
-                    .Take(toRemove)
-                    .Select(kvp => kvp.Key)
-                    .ToList();
+                // Get the oldest entries using allocation-free helper
+                var actualCount = LruEvictionHelper.FindLeastRecentlyUsed(
+                    States,
+                    entry => entry.LastAccessTicks,
+                    toRemove,
+                    out var keysToEvict);
 
-                foreach (var key in oldestKeys)
+                for (int i = 0; i < actualCount; i++)
                 {
-                    States.TryRemove(key, out _);
+                    States.TryRemove(keysToEvict[i], out _);
                 }
             }
             finally

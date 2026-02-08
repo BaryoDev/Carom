@@ -68,25 +68,25 @@ namespace Carom.Http
             CancellationToken cancellationToken)
         {
             return await Carom.ShotAsync(
-                async () =>
-                {
-                    var response = await base.SendAsync(request, cancellationToken).ConfigureAwait(false);
-
-                    if (IsTransientError(response.StatusCode))
-                    {
-                        // Throw to trigger retry for transient errors
-                        throw new TransientHttpException(
-                            $"Transient HTTP error: {(int)response.StatusCode} {response.StatusCode}",
-                            response.StatusCode);
-                    }
-
-                    return response;
-                },
+                async () => await base.SendAsync(request, cancellationToken).ConfigureAwait(false),
                 _config.Retries,
                 _config.BaseDelay,
-                shouldBounce: ex => ex is TransientHttpException,
+                timeout: null,
+                shouldBounce: IsTransientException,
+                shouldRetryResult: response => IsTransientError(response.StatusCode),
                 disableJitter: _config.DisableJitter,
                 ct: cancellationToken).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Determines if an exception represents a transient failure that should be retried.
+        /// </summary>
+        /// <param name="ex">The exception to check.</param>
+        /// <returns>True if the exception is transient and should be retried.</returns>
+        private static bool IsTransientException(Exception ex)
+        {
+            // Retry on HttpRequestException (network errors) and TransientHttpException
+            return ex is HttpRequestException || ex is TransientHttpException;
         }
 
         /// <summary>

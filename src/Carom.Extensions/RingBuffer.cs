@@ -7,12 +7,19 @@ namespace Carom.Extensions
     /// Lock-free ring buffer for tracking recent operation results.
     /// Used by circuit breaker to maintain sliding window of success/failure.
     /// Thread-safe for concurrent Add and CountWhere operations.
+    /// Uses seqlock pattern for efficient lock-free reads.
     /// </summary>
     internal class RingBuffer<T>
     {
         private readonly T[] _buffer;
-        private readonly object _snapshotLock = new object();
+        private readonly object _fallbackLock = new object();
         private long _index; // Use long to avoid overflow for much longer
+        private long _version; // Seqlock version: odd = write in progress, even = stable
+
+        /// <summary>
+        /// Maximum retries before falling back to lock.
+        /// </summary>
+        private const int MaxSeqlockRetries = 5;
 
         public RingBuffer(int capacity)
         {
@@ -24,15 +31,26 @@ namespace Carom.Extensions
 
         /// <summary>
         /// Adds an item to the buffer (thread-safe).
-        /// Uses modulo arithmetic to handle wrap-around correctly.
+        /// Uses seqlock pattern: increments version before and after write.
         /// </summary>
         public void Add(T item)
         {
-            // Increment and get the previous value
-            var idx = Interlocked.Increment(ref _index) - 1;
-            // Use positive modulo to get correct index even after overflow
-            var bufferIndex = (int)((idx % _buffer.Length + _buffer.Length) % _buffer.Length);
-            _buffer[bufferIndex] = item;
+            // Increment version to odd (write in progress)
+            Interlocked.Increment(ref _version);
+
+            try
+            {
+                // Increment and get the previous value
+                var idx = Interlocked.Increment(ref _index) - 1;
+                // Use positive modulo to get correct index even after overflow
+                var bufferIndex = (int)((idx % _buffer.Length + _buffer.Length) % _buffer.Length);
+                _buffer[bufferIndex] = item;
+            }
+            finally
+            {
+                // Increment version to even (write complete)
+                Interlocked.Increment(ref _version);
+            }
         }
 
         /// <summary>
@@ -51,40 +69,81 @@ namespace Carom.Extensions
 
         /// <summary>
         /// Counts items matching the predicate.
-        /// Takes a snapshot to ensure consistent reads during enumeration.
+        /// Uses seqlock pattern: retries if version changed during read.
+        /// Falls back to lock after MaxSeqlockRetries attempts.
         /// </summary>
         public int CountWhere(Func<T, bool> predicate)
         {
-            // Take a snapshot under lock to ensure consistency
-            T[] snapshot;
-            int count;
-
-            lock (_snapshotLock)
+            // Try seqlock-based read first
+            for (int retry = 0; retry < MaxSeqlockRetries; retry++)
             {
-                count = Count;
+                // Wait for any write to complete (version must be even)
+                long versionBefore;
+                var spinCount = 0;
+                while (true)
+                {
+                    versionBefore = Volatile.Read(ref _version);
+                    if ((versionBefore & 1) == 0) break; // Even = no write in progress
+
+                    // Spin briefly waiting for write to complete
+                    if (++spinCount > 100)
+                    {
+                        Thread.Yield();
+                        spinCount = 0;
+                    }
+                }
+
+                var count = Count;
                 if (count == 0) return 0;
 
-                snapshot = new T[count];
                 var startIdx = Volatile.Read(ref _index);
+                var matched = 0;
 
-                // Copy the relevant portion of the buffer
+                // Read directly from buffer (may be inconsistent if concurrent write)
                 for (int i = 0; i < count; i++)
                 {
-                    // Calculate the index going backwards from current position
                     var bufferIdx = (int)(((startIdx - count + i) % _buffer.Length + _buffer.Length) % _buffer.Length);
-                    snapshot[i] = _buffer[bufferIdx];
+                    var item = _buffer[bufferIdx];
+                    if (predicate(item))
+                        matched++;
                 }
+
+                // Check if version changed during read
+                var versionAfter = Volatile.Read(ref _version);
+                if (versionBefore == versionAfter)
+                {
+                    // Version unchanged - read was consistent
+                    return matched;
+                }
+                // Version changed - retry
             }
 
-            // Count matches outside the lock
-            var matched = 0;
-            for (int i = 0; i < count; i++)
+            // Fallback to lock after max retries
+            return CountWhereWithLock(predicate);
+        }
+
+        /// <summary>
+        /// Fallback implementation using lock for high contention scenarios.
+        /// </summary>
+        private int CountWhereWithLock(Func<T, bool> predicate)
+        {
+            lock (_fallbackLock)
             {
-                if (predicate(snapshot[i]))
-                    matched++;
-            }
+                var count = Count;
+                if (count == 0) return 0;
 
-            return matched;
+                var startIdx = Volatile.Read(ref _index);
+                var matched = 0;
+
+                for (int i = 0; i < count; i++)
+                {
+                    var bufferIdx = (int)(((startIdx - count + i) % _buffer.Length + _buffer.Length) % _buffer.Length);
+                    if (predicate(_buffer[bufferIdx]))
+                        matched++;
+                }
+
+                return matched;
+            }
         }
 
         /// <summary>
@@ -93,11 +152,22 @@ namespace Carom.Extensions
         /// </summary>
         public void Reset()
         {
-            lock (_snapshotLock)
+            // Increment version to odd (modification in progress)
+            Interlocked.Increment(ref _version);
+
+            try
             {
-                Interlocked.Exchange(ref _index, 0);
-                // Clear the buffer to prevent stale reads
-                Array.Clear(_buffer, 0, _buffer.Length);
+                lock (_fallbackLock)
+                {
+                    Interlocked.Exchange(ref _index, 0);
+                    // Clear the buffer to prevent stale reads
+                    Array.Clear(_buffer, 0, _buffer.Length);
+                }
+            }
+            finally
+            {
+                // Increment version to even (modification complete)
+                Interlocked.Increment(ref _version);
             }
         }
     }

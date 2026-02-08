@@ -32,17 +32,60 @@ namespace Carom
             Func<Exception, bool>? shouldBounce = null,
             bool disableJitter = false)
         {
+            return Shot(action, retries, baseDelay, shouldBounce, shouldRetryResult: null, disableJitter);
+        }
+
+        /// <summary>
+        /// Executes an action with retry logic and decorrelated jitter, including result-based retry.
+        /// </summary>
+        /// <typeparam name="T">The return type of the action.</typeparam>
+        /// <param name="action">The action to execute.</param>
+        /// <param name="retries">Number of retry attempts (default: 3).</param>
+        /// <param name="baseDelay">Base delay between retries (default: 100ms).</param>
+        /// <param name="shouldBounce">Predicate to determine if an exception should trigger a retry.</param>
+        /// <param name="shouldRetryResult">Predicate to determine if a result should trigger a retry (returns true to retry).</param>
+        /// <param name="disableJitter">If true, uses fixed exponential backoff instead of jitter.</param>
+        /// <returns>The result of the action.</returns>
+        public static T Shot<T>(
+            Func<T> action,
+            int retries,
+            TimeSpan? baseDelay,
+            Func<Exception, bool>? shouldBounce,
+            Func<T, bool>? shouldRetryResult,
+            bool disableJitter = false)
+        {
             if (action == null) throw new ArgumentNullException(nameof(action));
             retries = Math.Max(0, retries);
             var delay = baseDelay ?? JitterStrategy.DefaultBaseDelay;
             var previousDelay = delay;
             Exception? lastException = null;
+            T lastResult = default!;
 
             for (int attempt = 0; attempt <= retries; attempt++)
             {
                 try
                 {
-                    return action();
+                    var result = action();
+
+                    // Check if we should retry based on result
+                    if (shouldRetryResult != null && shouldRetryResult(result))
+                    {
+                        lastResult = result;
+
+                        // Check if we have retries left
+                        if (attempt >= retries)
+                        {
+                            return result; // Return the last result if no retries left
+                        }
+
+                        // Calculate and wait for the next delay
+                        var nextDelay = JitterStrategy.CalculateDelay(delay, previousDelay, disableJitter, attempt + 1);
+                        Thread.Sleep(nextDelay);
+                        previousDelay = nextDelay;
+                        continue;
+                    }
+
+                    return result;
                 }
                 catch (Exception ex)
                 {
@@ -115,7 +158,17 @@ namespace Carom
         /// <param name="bounce">The retry configuration.</param>
         /// <returns>The result of the action.</returns>
         public static T Shot<T>(Func<T> action, Bounce bounce) =>
-            Shot(action, bounce.Retries, bounce.BaseDelay, bounce.ShouldBounce, bounce.DisableJitter);
+            Shot(action, bounce.Retries, bounce.BaseDelay, bounce.ShouldBounce, shouldRetryResult: null, bounce.DisableJitter);
+
+        /// <summary>
+        /// Executes an action with retry logic using a typed Bounce configuration with result-based retry.
+        /// </summary>
+        /// <typeparam name="T">The return type of the action.</typeparam>
+        /// <param name="action">The action to execute.</param>
+        /// <param name="bounce">The retry configuration with result predicate.</param>
+        /// <returns>The result of the action.</returns>
+        public static T Shot<T>(Func<T> action, Bounce<T> bounce) =>
+            Shot(action, bounce.Retries, bounce.BaseDelay, bounce.ShouldBounce, bounce.ShouldRetryResult, bounce.DisableJitter);
 
         /// <summary>
         /// Executes a void action with retry logic using a Bounce configuration.
@@ -140,12 +193,38 @@ namespace Carom
         /// <param name="disableJitter">If true, uses fixed exponential backoff instead of jitter.</param>
         /// <param name="ct">Cancellation token.</param>
         /// <returns>The result of the action.</returns>
-        public static async Task<T> ShotAsync<T>(
+        public static Task<T> ShotAsync<T>(
             Func<Task<T>> action,
             int retries = 3,
             TimeSpan? baseDelay = null,
             TimeSpan? timeout = null,
             Func<Exception, bool>? shouldBounce = null,
+            bool disableJitter = false,
+            CancellationToken ct = default)
+        {
+            return ShotAsync(action, retries, baseDelay, timeout, shouldBounce, shouldRetryResult: null, disableJitter, ct);
+        }
+
+        /// <summary>
+        /// Executes an async action with retry logic and decorrelated jitter, including result-based retry.
+        /// </summary>
+        /// <typeparam name="T">The return type of the action.</typeparam>
+        /// <param name="action">The async action to execute.</param>
+        /// <param name="retries">Number of retry attempts (default: 3).</param>
+        /// <param name="baseDelay">Base delay between retries (default: 100ms).</param>
+        /// <param name="timeout">Timeout for the entire operation.</param>
+        /// <param name="shouldBounce">Predicate to determine if an exception should trigger a retry.</param>
+        /// <param name="shouldRetryResult">Predicate to determine if a result should trigger a retry (returns true to retry).</param>
+        /// <param name="disableJitter">If true, uses fixed exponential backoff instead of jitter.</param>
+        /// <param name="ct">Cancellation token.</param>
+        /// <returns>The result of the action.</returns>
+        public static async Task<T> ShotAsync<T>(
+            Func<Task<T>> action,
+            int retries,
+            TimeSpan? baseDelay,
+            TimeSpan? timeout,
+            Func<Exception, bool>? shouldBounce,
+            Func<T, bool>? shouldRetryResult,
             bool disableJitter = false,
             CancellationToken ct = default)
         {
@@ -168,6 +247,7 @@ namespace Carom
             var delay = baseDelay ?? JitterStrategy.DefaultBaseDelay;
             var previousDelay = delay;
             Exception? lastException = null;
+            T lastResult = default!;
 
             for (int attempt = 0; attempt <= retries; attempt++)
             {
@@ -175,7 +255,8 @@ namespace Carom
 
                 try
                 {
-                    var task = action();
+                    Task<T> task = action();
+                    T result;
 
                     // Only use WhenAny pattern if we have a cancellation mechanism
                     // This prevents Task.Delay(-1, ct) from leaking when ct is never cancelled
@@ -185,17 +266,39 @@ namespace Carom
 
                         if (completedTask == task)
                         {
-                            return await task.ConfigureAwait(false);
+                            result = await task.ConfigureAwait(false);
                         }
-
-                        // Task.Delay completed, which means effectiveCt was cancelled (timeout or manual)
-                        throw new OperationCanceledException(effectiveCt);
+                        else
+                        {
+                            // Task.Delay completed, which means effectiveCt was cancelled (timeout or manual)
+                            throw new OperationCanceledException(effectiveCt);
+                        }
                     }
                     else
                     {
                         // No cancellation possible - just await directly (prevents leak)
-                        return await task.ConfigureAwait(false);
+                        result = await task.ConfigureAwait(false);
                     }
+
+                    // Check if we should retry based on result
+                    if (shouldRetryResult != null && shouldRetryResult(result))
+                    {
+                        lastResult = result;
+
+                        // Check if we have retries left
+                        if (attempt >= retries)
+                        {
+                            return result; // Return the last result if no retries left
+                        }
+
+                        // Calculate and wait for the next delay
+                        var nextDelay = JitterStrategy.CalculateDelay(delay, previousDelay, disableJitter, attempt + 1);
+                        await Task.Delay(nextDelay, effectiveCt).ConfigureAwait(false);
+                        previousDelay = nextDelay;
+                        continue;
+                    }
+
+                    return result;
                 }
                 catch (OperationCanceledException) when (effectiveCt.IsCancellationRequested)
                 {
@@ -315,7 +418,18 @@ namespace Carom
         /// <param name="ct">Cancellation token.</param>
         /// <returns>The result of the action.</returns>
         public static Task<T> ShotAsync<T>(Func<Task<T>> action, Bounce bounce, CancellationToken ct = default) =>
-            ShotAsync(action, bounce.Retries, bounce.BaseDelay, bounce.Timeout, bounce.ShouldBounce, bounce.DisableJitter, ct);
+            ShotAsync(action, bounce.Retries, bounce.BaseDelay, bounce.Timeout, bounce.ShouldBounce, shouldRetryResult: null, bounce.DisableJitter, ct);
+
+        /// <summary>
+        /// Executes an async action with retry logic using a typed Bounce configuration with result-based retry.
+        /// </summary>
+        /// <typeparam name="T">The return type of the action.</typeparam>
+        /// <param name="action">The async action to execute.</param>
+        /// <param name="bounce">The retry configuration with result predicate.</param>
+        /// <param name="ct">Cancellation token.</param>
+        /// <returns>The result of the action.</returns>
+        public static Task<T> ShotAsync<T>(Func<Task<T>> action, Bounce<T> bounce, CancellationToken ct = default) =>
+            ShotAsync(action, bounce.Retries, bounce.BaseDelay, bounce.Timeout, bounce.ShouldBounce, bounce.ShouldRetryResult, bounce.DisableJitter, ct);
 
         /// <summary>
         /// Executes an async void action with retry logic using a Bounce configuration.

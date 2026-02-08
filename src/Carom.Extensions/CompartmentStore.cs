@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Concurrent;
-using System.Linq;
 using System.Threading;
 
 namespace Carom.Extensions
@@ -60,6 +59,7 @@ namespace Carom.Extensions
         /// <summary>
         /// Removes the least recently used entries when over capacity.
         /// Disposes evicted CompartmentState instances.
+        /// Uses allocation-free LruEvictionHelper instead of LINQ.
         /// </summary>
         private static void EvictLeastRecentlyUsed()
         {
@@ -80,16 +80,16 @@ namespace Carom.Extensions
                 // Calculate how many to remove (remove 10% to avoid frequent eviction)
                 var toRemove = Math.Max(1, _states.Count - MaxSize + MaxSize / 10);
 
-                // Get the oldest entries
-                var oldestKeys = _states
-                    .OrderBy(kvp => kvp.Value.LastAccessTicks)
-                    .Take(toRemove)
-                    .Select(kvp => kvp.Key)
-                    .ToList();
+                // Get the oldest entries using allocation-free helper
+                var actualCount = LruEvictionHelper.FindLeastRecentlyUsed(
+                    _states,
+                    entry => entry.LastAccessTicks,
+                    toRemove,
+                    out var keysToEvict);
 
-                foreach (var key in oldestKeys)
+                for (int i = 0; i < actualCount; i++)
                 {
-                    if (_states.TryRemove(key, out var entry))
+                    if (_states.TryRemove(keysToEvict[i], out var entry))
                     {
                         // Dispose the CompartmentState to release the semaphore
                         entry.State.Dispose();

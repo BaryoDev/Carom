@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+
+    <!-- Package Metadata -->
+    <PackageId>Carom.DependencyInjection</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Baryo.Dev</Authors>
+    <Company>Baryo.Dev</Company>
+    <Description>Dependency injection integration for Carom resilience library. Provides ResiliencePipeline builder for composable retry, circuit breaker, timeout, and fallback strategies with Microsoft.Extensions.DependencyInjection.</Description>
+    <PackageTags>resilience;dependency-injection;polly-alternative;retry;circuit-breaker;timeout;fallback;di;ioc;microsoft-extensions</PackageTags>
+    <RepositoryUrl>https://github.com/BaryoDev/Carom</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/BaryoDev/Carom</PackageProjectUrl>
+    <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <Copyright>Copyright © 2025 Baryo.Dev</Copyright>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Carom/Carom.csproj" />
+    <ProjectReference Include="../Carom.Extensions/Carom.Extensions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="6.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>
