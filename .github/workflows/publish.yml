@@ -12,6 +12,9 @@ on:
         type: boolean
         default: true
 
+permissions:
+  contents: write
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -63,23 +66,22 @@ jobs:
 
       - name: Create GitHub Release
         if: ${{ github.event.inputs.create_tag == 'true' }}
-        uses: actions/create-release@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: v${{ github.event.inputs.version }}
-          release_name: Release v${{ github.event.inputs.version }}
-          body: |
-            ## Carom v${{ github.event.inputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "v${{ github.event.inputs.version }}" \
+            --title "Release v${{ github.event.inputs.version }}" \
+            --notes "$(cat <<'EOF'
+          ## Carom v${{ github.event.inputs.version }}
 
-            Published packages:
-            - Carom
-            - Carom.Extensions
-            - Carom.Http
-            - Carom.AspNetCore
-            - Carom.EntityFramework
-            - Carom.Telemetry.OpenTelemetry
+          Published packages:
+          - Carom
+          - Carom.Extensions
+          - Carom.Http
+          - Carom.AspNetCore
+          - Carom.EntityFramework
+          - Carom.Telemetry.OpenTelemetry
 
-            See [CHANGELOG.md](https://github.com/BaryoDev/Carom/blob/master/CHANGELOG.md) for details.
-          draft: false
-          prerelease: false
+          See [CHANGELOG.md](https://github.com/BaryoDev/Carom/blob/master/CHANGELOG.md) for details.
+          EOF
+          )"
