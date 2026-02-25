@@ -132,10 +132,18 @@ namespace Carom.Extensions
                     return; // Someone else already refilled
                 }
 
-                // Recalculate
+                // Recalculate with same overflow protection as the original path
                 elapsedTicks = currentTicks - lastTicks;
                 intervalsElapsed = elapsedTicks / _refillIntervalTicks;
+                if (intervalsElapsed > int.MaxValue)
+                {
+                    intervalsElapsed = int.MaxValue;
+                }
                 tokensToAdd = intervalsElapsed * 1000;
+                if (tokensToAdd <= 0)
+                {
+                    return;
+                }
                 newLastTicks = lastTicks + (intervalsElapsed * _refillIntervalTicks);
 
                 if (spin >= SpinWaitIterations)

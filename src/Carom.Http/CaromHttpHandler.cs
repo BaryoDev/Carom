@@ -68,12 +68,21 @@ namespace Carom.Http
             CancellationToken cancellationToken)
         {
             return await Carom.ShotAsync(
-                async () => await base.SendAsync(request, cancellationToken).ConfigureAwait(false),
+                async () =>
+                {
+                    var response = await base.SendAsync(request, cancellationToken).ConfigureAwait(false);
+                    if (IsTransientError(response.StatusCode))
+                    {
+                        var statusCode = response.StatusCode;
+                        response.Dispose();
+                        throw new TransientHttpException($"Transient HTTP error: {statusCode}", statusCode);
+                    }
+                    return response;
+                },
                 _config.Retries,
                 _config.BaseDelay,
                 timeout: null,
                 shouldBounce: IsTransientException,
-                shouldRetryResult: response => IsTransientError(response.StatusCode),
                 disableJitter: _config.DisableJitter,
                 ct: cancellationToken).ConfigureAwait(false);
         }

@@ -12,6 +12,7 @@ namespace Carom.Extensions
     internal class RingBuffer<T>
     {
         private readonly T[] _buffer;
+        private readonly object _writeLock = new object();
         private readonly object _fallbackLock = new object();
         private long _index; // Use long to avoid overflow for much longer
         private long _version; // Seqlock version: odd = write in progress, even = stable
@@ -31,25 +32,30 @@ namespace Carom.Extensions
 
         /// <summary>
         /// Adds an item to the buffer (thread-safe).
-        /// Uses seqlock pattern: increments version before and after write.
+        /// Serializes writers with a lock and uses seqlock versioning for readers.
         /// </summary>
         public void Add(T item)
         {
-            // Increment version to odd (write in progress)
-            Interlocked.Increment(ref _version);
-
-            try
+            lock (_writeLock)
             {
-                // Increment and get the previous value
-                var idx = Interlocked.Increment(ref _index) - 1;
-                // Use positive modulo to get correct index even after overflow
-                var bufferIndex = (int)((idx % _buffer.Length + _buffer.Length) % _buffer.Length);
-                _buffer[bufferIndex] = item;
-            }
-            finally
-            {
-                // Increment version to even (write complete)
+                // Increment version to odd (write in progress)
                 Interlocked.Increment(ref _version);
+
+                try
+                {
+                    // Increment and get the previous value
+                    var idx = Interlocked.Increment(ref _index) - 1;
+                    // Use positive modulo to get correct index even after overflow
+                    var bufferIndex = (int)((idx % _buffer.Length + _buffer.Length) % _buffer.Length);
+                    _buffer[bufferIndex] = item;
+                    // Ensure the write is visible to readers before version is incremented
+                    Thread.MemoryBarrier();
+                }
+                finally
+                {
+                    // Increment version to even (write complete)
+                    Interlocked.Increment(ref _version);
+                }
             }
         }
 
@@ -93,10 +99,11 @@ namespace Carom.Extensions
                     }
                 }
 
-                var count = Count;
+                // Derive count from a single atomic read of _index to avoid TOCTOU
+                var startIdx = Volatile.Read(ref _index);
+                var count = (int)Math.Min(startIdx < 0 ? long.MaxValue + startIdx + 1 : startIdx, _buffer.Length);
                 if (count == 0) return 0;
 
-                var startIdx = Volatile.Read(ref _index);
                 var matched = 0;
 
                 // Read directly from buffer (may be inconsistent if concurrent write)
@@ -129,10 +136,11 @@ namespace Carom.Extensions
         {
             lock (_fallbackLock)
             {
-                var count = Count;
+                // Derive count from a single atomic read of _index to avoid TOCTOU
+                var startIdx = Volatile.Read(ref _index);
+                var count = (int)Math.Min(startIdx < 0 ? long.MaxValue + startIdx + 1 : startIdx, _buffer.Length);
                 if (count == 0) return 0;
 
-                var startIdx = Volatile.Read(ref _index);
                 var matched = 0;
 
                 for (int i = 0; i < count; i++)
@@ -152,22 +160,22 @@ namespace Carom.Extensions
         /// </summary>
         public void Reset()
         {
-            // Increment version to odd (modification in progress)
-            Interlocked.Increment(ref _version);
-
-            try
+            lock (_writeLock)
             {
-                lock (_fallbackLock)
+                // Increment version to odd (modification in progress)
+                Interlocked.Increment(ref _version);
+
+                try
                 {
                     Interlocked.Exchange(ref _index, 0);
                     // Clear the buffer to prevent stale reads
                     Array.Clear(_buffer, 0, _buffer.Length);
                 }
-            }
-            finally
-            {
-                // Increment version to even (modification complete)
-                Interlocked.Increment(ref _version);
+                finally
+                {
+                    // Increment version to even (modification complete)
+                    Interlocked.Increment(ref _version);
+                }
             }
         }
     }

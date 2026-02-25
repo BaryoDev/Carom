@@ -71,13 +71,7 @@ namespace Carom.Extensions
                 }
                 catch
                 {
-                    state.RecordFailure();
-
-                    if (state.ShouldOpen(FailureThreshold, SamplingWindow))
-                    {
-                        state.Open();
-                    }
-
+                    state.RecordFailureAndTryOpen(FailureThreshold, SamplingWindow);
                     throw;
                 }
             }
@@ -153,13 +147,7 @@ namespace Carom.Extensions
                 }
                 catch
                 {
-                    state.RecordFailure();
-
-                    if (state.ShouldOpen(FailureThreshold, SamplingWindow))
-                    {
-                        state.Open();
-                    }
-
+                    state.RecordFailureAndTryOpen(FailureThreshold, SamplingWindow);
                     throw;
                 }
             }

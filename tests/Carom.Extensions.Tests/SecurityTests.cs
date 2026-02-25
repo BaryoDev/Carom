@@ -229,75 +229,56 @@ namespace Carom.Extensions.Tests
                 .WithMaxConcurrency(5)
                 .Build();
 
-            var entryBarrier = new Barrier(6); // 5 accepted + 1 main thread
+            var enteredSignal = new CountdownEvent(5);
             var holdSemaphore = new SemaphoreSlim(0);
-            var acceptedCount = 0;
             var rejectedCount = 0;
-            var tasks = new List<Task>();
+            var blockingTasks = new List<Task>();
 
-            // Start tasks that will hold the compartment slots
+            // Start tasks that will hold the compartment slots using dedicated threads
             for (int i = 0; i < 5; i++)
             {
-                tasks.Add(Task.Run(async () =>
+                blockingTasks.Add(Task.Factory.StartNew(async () =>
                 {
-                    try
-                    {
-                        await CaromCompartmentExtensions.ShotAsync<int>(
-                            async () =>
-                            {
-                                Interlocked.Increment(ref acceptedCount);
-                                entryBarrier.SignalAndWait(TimeSpan.FromSeconds(5)); // Signal that slot is held
-                                await holdSemaphore.WaitAsync(); // Hold until released
-                                return 1;
-                            },
-                            compartment,
-                            retries: 0);
-                    }
-                    catch (CompartmentFullException)
-                    {
-                        Interlocked.Increment(ref rejectedCount);
-                    }
-                }));
+                    await CaromCompartmentExtensions.ShotAsync<int>(
+                        async () =>
+                        {
+                            enteredSignal.Signal();
+                            await holdSemaphore.WaitAsync();
+                            return 1;
+                        },
+                        compartment,
+                        retries: 0);
+                }, TaskCreationOptions.LongRunning).Unwrap());
             }
 
             // Wait for all 5 slots to be occupied
-            entryBarrier.SignalAndWait(TimeSpan.FromSeconds(5));
+            Assert.True(enteredSignal.Wait(TimeSpan.FromSeconds(10)), "Blocking tasks did not enter in time");
 
-            // Now try additional tasks - these should be rejected
+            // Now try additional tasks directly — these should be rejected
             for (int i = 0; i < 10; i++)
             {
-                tasks.Add(Task.Run(async () =>
+                try
                 {
-                    try
-                    {
-                        await CaromCompartmentExtensions.ShotAsync<int>(
-                            async () =>
-                            {
-                                Interlocked.Increment(ref acceptedCount);
-                                return 1;
-                            },
-                            compartment,
-                            retries: 0);
-                    }
-                    catch (CompartmentFullException)
-                    {
-                        Interlocked.Increment(ref rejectedCount);
-                    }
-                }));
+                    await CaromCompartmentExtensions.ShotAsync<int>(
+                        async () =>
+                        {
+                            await Task.Yield();
+                            return 1;
+                        },
+                        compartment,
+                        retries: 0);
+                }
+                catch (CompartmentFullException)
+                {
+                    Interlocked.Increment(ref rejectedCount);
+                }
             }
 
-            // Give time for rejection tasks to complete
-            await Task.Delay(200);
-
-            // Should have exactly maxConcurrency accepted initially
-            Assert.True(acceptedCount <= 5,
-                $"Expected at most 5 accepted, got {acceptedCount}");
-
-            // Release held slots and wait for all tasks
+            // Release held slots and wait for blocking tasks
             holdSemaphore.Release(5);
-            await Task.WhenAll(tasks);
+            await Task.WhenAll(blockingTasks);
 
-            // Should have rejected some excess requests (allow flexibility for timing)
+            // Should have rejected all excess requests since compartment was full
             Assert.True(rejectedCount >= 1,
                 $"Expected at least 1 rejection, got {rejectedCount}");
         }
@@ -311,32 +292,29 @@ namespace Carom.Extensions.Tests
                 .Build();
 
             var holdSemaphore = new SemaphoreSlim(0);
-            var entryCount = 0;
-            var entryBarrier = new Barrier(3); // 2 blocking tasks + main thread
+            var enteredSignal = new CountdownEvent(2);
 
-            // Block the compartment
+            // Block the compartment using LongRunning to get dedicated threads
             var blockingTasks = new[]
             {
-                Task.Run(() => CaromCompartmentExtensions.Shot<int>(
-                    () => {
-                        Interlocked.Increment(ref entryCount);
-                        entryBarrier.SignalAndWait(TimeSpan.FromSeconds(5));
-                        holdSemaphore.Wait();
+                Task.Factory.StartNew(async () => await CaromCompartmentExtensions.ShotAsync<int>(
+                    async () => {
+                        enteredSignal.Signal();
+                        await holdSemaphore.WaitAsync();
                         return 1;
                     },
-                    compartment, retries: 0)),
-                Task.Run(() => CaromCompartmentExtensions.Shot<int>(
-                    () => {
-                        Interlocked.Increment(ref entryCount);
-                        entryBarrier.SignalAndWait(TimeSpan.FromSeconds(5));
-                        holdSemaphore.Wait();
+                    compartment, retries: 0), TaskCreationOptions.LongRunning).Unwrap(),
+                Task.Factory.StartNew(async () => await CaromCompartmentExtensions.ShotAsync<int>(
+                    async () => {
+                        enteredSignal.Signal();
+                        await holdSemaphore.WaitAsync();
                         return 2;
                     },
-                    compartment, retries: 0))
+                    compartment, retries: 0), TaskCreationOptions.LongRunning).Unwrap()
             };
 
-            // Wait until both tasks have entered
-            entryBarrier.SignalAndWait(TimeSpan.FromSeconds(5));
+            // Wait until both tasks have entered the compartment
+            Assert.True(enteredSignal.Wait(TimeSpan.FromSeconds(10)), "Blocking tasks did not enter in time");
 
             var stopwatch = Stopwatch.StartNew();
 
@@ -360,17 +338,10 @@ namespace Carom.Extensions.Tests
 
             stopwatch.Stop();
 
-            // Should be rejected (allow pass if timing issues cause slot availability)
-            if (!rejected)
-            {
-                // May have succeeded if one task finished - that's acceptable
-                Assert.True(entryCount >= 2, "Expected at least 2 entries");
-            }
-            else
-            {
-                Assert.True(stopwatch.ElapsedMilliseconds < 5000,
-                    $"Expected quick rejection, took {stopwatch.ElapsedMilliseconds}ms");
-            }
+            // Should be rejected quickly since compartment is full
+            Assert.True(rejected, "Expected CompartmentFullException since both slots are occupied");
+            Assert.True(stopwatch.ElapsedMilliseconds < 5000,
+                $"Expected quick rejection, took {stopwatch.ElapsedMilliseconds}ms");
 
             holdSemaphore.Release(2);
             await Task.WhenAll(blockingTasks);
@@ -446,8 +417,10 @@ namespace Carom.Extensions.Tests
         [Fact]
         public async Task Throttle_ThreadSafe_UnderAttack()
         {
+            // Use a long window so tokens cannot refill during the test,
+            // even under thread pool starvation
             var throttle = Throttle.ForService("concurrent-attack-" + Guid.NewGuid())
-                .WithRate(50, TimeSpan.FromSeconds(1))
+                .WithRate(50, TimeSpan.FromSeconds(60))
                 .WithBurst(50)
                 .Build();
 

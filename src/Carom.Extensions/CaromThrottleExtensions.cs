@@ -9,6 +9,8 @@ namespace Carom.Extensions
     /// </summary>
     public static class CaromThrottleExtensions
     {
+        private static bool DefaultShouldBounce(Exception ex) => ex is not ThrottledException;
+
         /// <summary>
         /// Executes a synchronous shot with rate limiting.
         /// </summary>
@@ -24,7 +26,7 @@ namespace Carom.Extensions
                 () => throttle.Execute(action),
                 retries,
                 baseDelay,
-                shouldBounce,
+                shouldBounce ?? DefaultShouldBounce,
                 disableJitter);
         }
 
@@ -55,7 +57,7 @@ namespace Carom.Extensions
                 retries,
                 baseDelay,
                 timeout: null,
-                shouldBounce,
+                shouldBounce ?? DefaultShouldBounce,
                 disableJitter,
                 ct).ConfigureAwait(false);
         }

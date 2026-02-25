@@ -14,7 +14,7 @@ namespace Carom.Extensions
         private readonly int _maxConcurrency;
         private readonly int _queueDepth;
         private int _activeCount;
-        private bool _disposed;
+        private int _disposed; // 0 = not disposed, 1 = disposed
 
         public CompartmentState(int maxConcurrency, int queueDepth)
         {
@@ -135,7 +135,7 @@ namespace Carom.Extensions
         /// </summary>
         public void Release()
         {
-            if (_disposed) return;
+            if (Volatile.Read(ref _disposed) == 1) return;
 
             Interlocked.Decrement(ref _activeCount);
             try
@@ -154,7 +154,7 @@ namespace Carom.Extensions
 
         private void ThrowIfDisposed()
         {
-            if (_disposed)
+            if (Volatile.Read(ref _disposed) == 1)
             {
                 throw new ObjectDisposedException(nameof(CompartmentState));
             }
@@ -165,8 +165,7 @@ namespace Carom.Extensions
         /// </summary>
         public void Dispose()
         {
-            if (_disposed) return;
-            _disposed = true;
+            if (Interlocked.CompareExchange(ref _disposed, 1, 0) != 0) return;
             _semaphore.Dispose();
         }
     }

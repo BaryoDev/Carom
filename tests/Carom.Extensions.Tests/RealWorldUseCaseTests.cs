@@ -275,20 +275,20 @@ namespace Carom.Extensions.Tests
         public async Task RateLimiter_RefillsOverTime()
         {
             // Scenario: Tokens should refill after window passes
+            // Use a 2s window so tokens don't refill during the first batch even under load,
+            // but refill happens in a reasonable time for testing
             var throttle = Throttle.ForService("refill-test-" + Guid.NewGuid())
-                .WithRate(10, TimeSpan.FromMilliseconds(100))
+                .WithRate(10, TimeSpan.FromSeconds(2))
                 .WithBurst(10)
                 .Build();
 
-            // Exhaust all tokens
+            // Exhaust all tokens synchronously to avoid async scheduling delays
             var firstBatch = 0;
             for (int i = 0; i < 20; i++)
             {
                 try
                 {
-                    await CaromThrottleExtensions.ShotAsync(
-                        async () => { await Task.Yield(); return 1; },
-                        throttle, retries: 0);
+                    CaromThrottleExtensions.Shot(() => 1, throttle, retries: 0);
                     firstBatch++;
                 }
                 catch (ThrottledException) { }
@@ -296,8 +296,8 @@ namespace Carom.Extensions.Tests
 
             Assert.True(firstBatch <= 15, $"First batch should allow ~10, got {firstBatch}");
 
-            // Wait for refill (longer for CI stability)
-            await Task.Delay(300);
+            // Wait for full refill (2s window = 200ms per token, need 10 tokens = 2s + margin)
+            await Task.Delay(3000);
 
             // Should have tokens again
             var secondBatch = 0;

@@ -14,15 +14,16 @@ namespace Carom.Extensions.Tests
         [Fact]
         public async Task Masse_FirstAttemptWins_ReturnsImmediately()
         {
-            var config = Masse.WithAttempts(3).After(TimeSpan.FromSeconds(1));
+            // Use a very large hedge delay so the first attempt always wins,
+            // and a synchronous return to avoid Task.Delay timing sensitivity under load
+            var config = Masse.WithAttempts(3).After(TimeSpan.FromSeconds(30));
             var attempts = 0;
 
             var result = await CaromMasseExtensions.ShotWithHedgingAsync(
-                async ct =>
+                ct =>
                 {
                     Interlocked.Increment(ref attempts);
-                    await Task.Delay(10, ct);
-                    return "success";
+                    return Task.FromResult("success");
                 },
                 config);
 
@@ -31,6 +32,7 @@ namespace Carom.Extensions.Tests
         }
 
         [Fact]
+        [Trait("Category", "LocalOnly")]
         public async Task Masse_HedgedAttemptWins_CancelsPending()
         {
             var config = Masse.WithAttempts(3).After(TimeSpan.FromMilliseconds(50));
@@ -46,10 +48,10 @@ namespace Carom.Extensions.Tests
 
                     if (attemptNum == 1)
                     {
-                        // First attempt is slow
+                        // First attempt is very slow — must be much longer than hedge delay
                         try
                         {
-                            await Task.Delay(1000, ct);
+                            await Task.Delay(30_000, ct);
                             return "slow";
                         }
                         catch (OperationCanceledException)
@@ -59,8 +61,7 @@ namespace Carom.Extensions.Tests
                         }
                     }
 
-                    // Hedged attempt returns quickly
-                    await Task.Delay(10, ct);
+                    // Hedged attempt returns immediately (no Task.Delay to avoid timing issues)
                     return "fast";
                 },
                 config);

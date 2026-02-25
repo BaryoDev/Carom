@@ -198,13 +198,26 @@ namespace Carom.DependencyInjection
 
         public T Execute<T>(Func<T> action)
         {
-            // Synchronous timeout is tricky; use task-based approach
-            var task = Task.Run(action);
-            if (!task.Wait(_timeout))
+            // Synchronous timeout using task-based approach with cancellation
+            using var cts = new CancellationTokenSource(_timeout);
+            var token = cts.Token;
+            var task = Task.Run(action, token);
+            try
             {
-                throw new TimeoutException($"Operation timed out after {_timeout.TotalMilliseconds}ms");
+                if (!task.Wait(_timeout))
+                {
+                    cts.Cancel();
+                    // Observe any exception to avoid UnobservedTaskException
+                    task.ContinueWith(static t => { var _ = t.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
+                    throw new TimeoutException($"Operation timed out after {_timeout.TotalMilliseconds}ms");
+                }
+                return task.GetAwaiter().GetResult();
             }
-            return task.Result;
+            catch (AggregateException ae) when (ae.InnerException != null)
+            {
+                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ae.InnerException).Throw();
+                throw; // Unreachable, satisfies compiler
+            }
         }
 
         public async Task<T> ExecuteAsync<T>(Func<CancellationToken, Task<T>> action, CancellationToken ct)

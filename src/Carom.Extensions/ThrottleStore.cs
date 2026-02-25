@@ -28,13 +28,17 @@ namespace Carom.Extensions
             // Try to get existing entry first
             if (_states.TryGetValue(serviceKey, out var existingEntry))
             {
+                if (existingEntry.MaxRequests != config.MaxRequests || existingEntry.BurstSize != config.BurstSize)
+                    throw new InvalidOperationException(
+                        $"Service '{serviceKey}' already registered with MaxRequests={existingEntry.MaxRequests}, BurstSize={existingEntry.BurstSize}, " +
+                        $"but requested MaxRequests={config.MaxRequests}, BurstSize={config.BurstSize}. Configuration changes for existing keys are not supported.");
                 existingEntry.Touch();
                 return existingEntry.State;
             }
 
             // Create new entry
             var newState = new ThrottleState(config.MaxRequests, config.TimeWindow, config.BurstSize);
-            var newEntry = new ThrottleStateEntry(newState);
+            var newEntry = new ThrottleStateEntry(newState, config.MaxRequests, config.BurstSize);
 
             // Try to add, handling race condition
             var entry = _states.GetOrAdd(serviceKey, newEntry);
@@ -114,11 +118,15 @@ namespace Carom.Extensions
         private class ThrottleStateEntry
         {
             public ThrottleState State { get; }
+            public int MaxRequests { get; }
+            public int BurstSize { get; }
             public long LastAccessTicks;
 
-            public ThrottleStateEntry(ThrottleState state)
+            public ThrottleStateEntry(ThrottleState state, int maxRequests, int burstSize)
             {
                 State = state;
+                MaxRequests = maxRequests;
+                BurstSize = burstSize;
                 LastAccessTicks = DateTime.UtcNow.Ticks;
             }
 

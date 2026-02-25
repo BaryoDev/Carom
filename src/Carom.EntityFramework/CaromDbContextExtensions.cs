@@ -73,16 +73,28 @@ namespace Carom.EntityFramework
 
         /// <summary>
         /// Determines if an exception is a transient database error that should be retried.
+        /// DbUpdateException is only retried when its inner exception indicates a transient error,
+        /// since DbUpdateException also covers permanent errors like constraint violations.
         /// </summary>
         private static bool IsTransientError(Exception ex)
         {
-            // Check for DbUpdateException (EF Core specific)
-            if (ex is DbUpdateException)
-                return true;
+            // For DbUpdateException, check the inner exception for transient indicators
+            if (ex is DbUpdateException dbEx)
+            {
+                var inner = dbEx.InnerException;
+                if (inner == null)
+                    return false;
 
-            // Check exception message for common transient error patterns
+                return IsTransientDatabaseException(inner);
+            }
+
+            return IsTransientDatabaseException(ex);
+        }
+
+        private static bool IsTransientDatabaseException(Exception ex)
+        {
             var message = ex.Message.ToLowerInvariant();
-            
+
             return message.Contains("timeout") ||
                    message.Contains("deadlock") ||
                    message.Contains("connection") ||

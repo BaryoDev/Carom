@@ -44,7 +44,8 @@ namespace Carom.Extensions.Tests
                             return taskId;
                         },
                         compartment,
-                        retries: 5);
+                        retries: 5,
+                        shouldBounce: _ => true);
                 }));
             }
 
@@ -62,43 +63,54 @@ namespace Carom.Extensions.Tests
                 .WithMaxConcurrency(2)
                 .Build();
 
-            var semaphore = new SemaphoreSlim(0);
-            var tasks = new List<Task>();
-            var rejectedCount = 0;
+            var holdSemaphore = new SemaphoreSlim(0);
+            var enteredSignal = new CountdownEvent(2);
+            var blockingTasks = new List<Task>();
 
-            // Start 3 tasks that will block
-            for (int i = 0; i < 3; i++)
+            // Start 2 tasks that will block inside the compartment
+            // Use LongRunning to get dedicated threads, avoiding thread pool starvation
+            for (int i = 0; i < 2; i++)
             {
-                tasks.Add(Task.Run(async () =>
+                blockingTasks.Add(Task.Factory.StartNew(async () =>
                 {
-                    try
-                    {
-                        await CaromCompartmentExtensions.ShotAsync<int>(
-                            async () =>
-                            {
-                                await semaphore.WaitAsync();
-                                return 1;
-                            },
-                            compartment,
-                            retries: 0);
-                    }
-                    catch (CompartmentFullException)
-                    {
-                        Interlocked.Increment(ref rejectedCount);
-                    }
-                }));
+                    await CaromCompartmentExtensions.ShotAsync<int>(
+                        async () =>
+                        {
+                            enteredSignal.Signal();
+                            await holdSemaphore.WaitAsync();
+                            return 1;
+                        },
+                        compartment,
+                        retries: 0);
+                }, TaskCreationOptions.LongRunning).Unwrap());
             }
 
-            // Give tasks time to start
-            await Task.Delay(100);
+            // Wait for both tasks to actually enter the compartment
+            Assert.True(enteredSignal.Wait(TimeSpan.FromSeconds(10)), "Tasks did not enter compartment in time");
 
-            // Release all tasks
-            semaphore.Release(3);
+            // Now try the 3rd call directly — compartment is full, must be rejected
+            var rejected = false;
+            try
+            {
+                await CaromCompartmentExtensions.ShotAsync<int>(
+                    async () =>
+                    {
+                        await Task.Yield();
+                        return 1;
+                    },
+                    compartment,
+                    retries: 0);
+            }
+            catch (CompartmentFullException)
+            {
+                rejected = true;
+            }
 
-            await Task.WhenAll(tasks);
+            // Release blocking tasks
+            holdSemaphore.Release(2);
+            await Task.WhenAll(blockingTasks);
 
-            // At least one should have been rejected
-            Assert.True(rejectedCount >= 1, $"Expected at least 1 rejection, got {rejectedCount}");
+            Assert.True(rejected, "Expected CompartmentFullException since both slots are occupied");
         }
 
         [Fact]
@@ -216,7 +228,8 @@ namespace Carom.Extensions.Tests
                         return taskId;
                     },
                     compartment,
-                    retries: 5));
+                    retries: 5,
+                    shouldBounce: _ => true));
             }
 
             var results = await Task.WhenAll(tasks);

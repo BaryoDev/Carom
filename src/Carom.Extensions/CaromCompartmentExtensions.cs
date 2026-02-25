@@ -9,6 +9,8 @@ namespace Carom.Extensions
     /// </summary>
     public static class CaromCompartmentExtensions
     {
+        private static bool DefaultShouldBounce(Exception ex) => ex is not CompartmentFullException;
+
         /// <summary>
         /// Executes a synchronous shot with bulkhead protection.
         /// </summary>
@@ -24,7 +26,7 @@ namespace Carom.Extensions
                 () => compartment.Execute(action),
                 retries,
                 baseDelay,
-                shouldBounce,
+                shouldBounce ?? DefaultShouldBounce,
                 disableJitter);
         }
 
@@ -55,7 +57,7 @@ namespace Carom.Extensions
                 retries,
                 baseDelay,
                 timeout: null,
-                shouldBounce,
+                shouldBounce ?? DefaultShouldBounce,
                 disableJitter,
                 ct).ConfigureAwait(false);
         }

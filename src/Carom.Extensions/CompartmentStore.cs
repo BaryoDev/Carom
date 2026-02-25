@@ -29,13 +29,17 @@ namespace Carom.Extensions
             // Try to get existing entry first
             if (_states.TryGetValue(resourceKey, out var existingEntry))
             {
+                if (existingEntry.MaxConcurrency != config.MaxConcurrency || existingEntry.QueueDepth != config.QueueDepth)
+                    throw new InvalidOperationException(
+                        $"Resource '{resourceKey}' already registered with MaxConcurrency={existingEntry.MaxConcurrency}, QueueDepth={existingEntry.QueueDepth}, " +
+                        $"but requested MaxConcurrency={config.MaxConcurrency}, QueueDepth={config.QueueDepth}. Configuration changes for existing keys are not supported.");
                 existingEntry.Touch();
                 return existingEntry.State;
             }
 
             // Create new entry
             var newState = new CompartmentState(config.MaxConcurrency, config.QueueDepth);
-            var newEntry = new CompartmentStateEntry(newState);
+            var newEntry = new CompartmentStateEntry(newState, config.MaxConcurrency, config.QueueDepth);
 
             // Try to add, handling race condition
             var entry = _states.GetOrAdd(resourceKey, newEntry);
@@ -139,11 +143,15 @@ namespace Carom.Extensions
         private class CompartmentStateEntry
         {
             public CompartmentState State { get; }
+            public int MaxConcurrency { get; }
+            public int QueueDepth { get; }
             public long LastAccessTicks;
 
-            public CompartmentStateEntry(CompartmentState state)
+            public CompartmentStateEntry(CompartmentState state, int maxConcurrency, int queueDepth)
             {
                 State = state;
+                MaxConcurrency = maxConcurrency;
+                QueueDepth = queueDepth;
                 LastAccessTicks = DateTime.UtcNow.Ticks;
             }
 

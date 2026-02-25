@@ -120,7 +120,7 @@ namespace Carom.Tests
         {
             var attempts = 0;
 
-            await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+            await Assert.ThrowsAsync<TimeoutRejectedException>(async () =>
             {
                 await Carom.ShotAsync(
                     async () =>

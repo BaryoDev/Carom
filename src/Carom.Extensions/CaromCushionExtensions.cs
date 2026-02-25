@@ -9,6 +9,8 @@ namespace Carom.Extensions
     /// </summary>
     public static class CaromCushionExtensions
     {
+        private static bool DefaultShouldBounce(Exception ex) => ex is not CircuitOpenException;
+
         /// <summary>
         /// Executes a synchronous shot with circuit breaker protection.
         /// Retry logic wraps circuit breaker logic.
@@ -25,7 +27,7 @@ namespace Carom.Extensions
                 () => cushion.Execute(action),
                 retries,
                 baseDelay,
-                shouldBounce,
+                shouldBounce ?? DefaultShouldBounce,
                 disableJitter);
         }
 
@@ -56,7 +58,7 @@ namespace Carom.Extensions
                 retries,
                 baseDelay,
                 timeout: null,
-                shouldBounce,
+                shouldBounce ?? DefaultShouldBounce,
                 disableJitter,
                 ct).ConfigureAwait(false);
         }

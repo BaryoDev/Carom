@@ -302,6 +302,9 @@ namespace Carom
                 }
                 catch (OperationCanceledException) when (effectiveCt.IsCancellationRequested)
                 {
+                    // Distinguish timeout from user cancellation
+                    if (timeout.HasValue && !ct.IsCancellationRequested)
+                        throw new TimeoutRejectedException(timeout.Value);
                     throw;
                 }
                 catch (Exception ex)
@@ -391,6 +394,9 @@ namespace Carom
                 }
                 catch (OperationCanceledException) when (effectiveCt.IsCancellationRequested)
                 {
+                    // Distinguish timeout from user cancellation
+                    if (timeout.HasValue && !ct.IsCancellationRequested)
+                        throw new TimeoutRejectedException(timeout.Value);
                     throw;
                 }
                 catch (Exception ex)

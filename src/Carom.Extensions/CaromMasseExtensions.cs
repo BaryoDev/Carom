@@ -58,6 +58,7 @@ namespace Carom.Extensions
                             if (config.CancelPendingOnSuccess)
                             {
                                 linkedCts.Cancel();
+                                ObserveRemainingTasks(tasks, finishedTask);
                             }
                             return result;
                         }
@@ -101,6 +102,7 @@ namespace Carom.Extensions
                         if (config.CancelPendingOnSuccess)
                         {
                             linkedCts.Cancel();
+                            ObserveRemainingTasks(tasks);
                         }
                         return result;
                     }
@@ -145,6 +147,18 @@ namespace Carom.Extensions
             CancellationToken ct = default)
         {
             return ShotWithHedgingAsync(_ => action(), config, ct);
+        }
+
+        private static void ObserveRemainingTasks<T>(List<Task<T>> tasks, Task<T>? excludeTask = null)
+        {
+            for (int i = 0; i < tasks.Count; i++)
+            {
+                var t = tasks[i];
+                if (t != excludeTask)
+                {
+                    t.ContinueWith(static task => { var _ = task.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
+                }
+            }
         }
 
         private static async Task<T> LaunchAttempt<T>(

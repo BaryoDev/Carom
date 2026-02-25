@@ -28,13 +28,17 @@ namespace Carom.Extensions
             // Try to get existing entry first
             if (States.TryGetValue(serviceKey, out var existingEntry))
             {
+                if (existingEntry.SamplingWindow != config.SamplingWindow)
+                    throw new InvalidOperationException(
+                        $"Service '{serviceKey}' already registered with SamplingWindow={existingEntry.SamplingWindow}, " +
+                        $"but requested SamplingWindow={config.SamplingWindow}. Configuration changes for existing keys are not supported.");
                 existingEntry.Touch();
                 return existingEntry.State;
             }
 
             // Create new entry
             var newState = new CushionState(config.SamplingWindow);
-            var newEntry = new CushionStateEntry(newState);
+            var newEntry = new CushionStateEntry(newState, config.SamplingWindow);
 
             // Try to add, handling race condition
             var entry = States.GetOrAdd(serviceKey, newEntry);
@@ -117,11 +121,13 @@ namespace Carom.Extensions
         private class CushionStateEntry
         {
             public CushionState State { get; }
+            public int SamplingWindow { get; }
             public long LastAccessTicks;
 
-            public CushionStateEntry(CushionState state)
+            public CushionStateEntry(CushionState state, int samplingWindow)
             {
                 State = state;
+                SamplingWindow = samplingWindow;
                 LastAccessTicks = DateTime.UtcNow.Ticks;
             }
 
