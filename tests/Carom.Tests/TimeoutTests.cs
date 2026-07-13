@@ -111,5 +111,38 @@ namespace Carom.Tests
             var bounce = Bounce.Times(3);
             Assert.Null(bounce.Timeout);
         }
+
+        [Fact]
+        public async Task ShotAsync_TimeoutDuringBackoffDelay_ThrowsTimeoutRejectedException()
+        {
+            // The action fails instantly, so the 200ms timeout fires during the
+            // multi-second retry backoff. The backoff wait must apply the same
+            // timeout translation as the operation itself, not leak a raw
+            // TaskCanceledException.
+            await Assert.ThrowsAsync<TimeoutRejectedException>(() =>
+                Carom.ShotAsync<int>(
+                    () => throw new InvalidOperationException("boom"),
+                    retries: 3,
+                    baseDelay: TimeSpan.FromSeconds(5),
+                    timeout: TimeSpan.FromMilliseconds(200),
+                    shouldBounce: _ => true,
+                    disableJitter: true));
+        }
+
+        [Fact]
+        public async Task ShotAsync_UserCancellationDuringBackoffDelay_ThrowsOperationCanceled()
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+                Carom.ShotAsync<int>(
+                    () => throw new InvalidOperationException("boom"),
+                    retries: 3,
+                    baseDelay: TimeSpan.FromSeconds(5),
+                    timeout: null,
+                    shouldBounce: _ => true,
+                    disableJitter: true,
+                    ct: cts.Token));
+        }
     }
 }

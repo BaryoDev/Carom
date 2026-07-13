@@ -12,6 +12,49 @@ namespace Carom.Extensions.Tests
             // Clear state between tests
         }
 
+        #region GetState Tests
+
+        [Fact]
+        public void GetState_ReturnsNull_WhenCircuitNeverUsed()
+        {
+            Assert.Null(Cushion.GetState("never-used-" + Guid.NewGuid()));
+        }
+
+        [Fact]
+        public void GetState_ReturnsClosed_AfterSuccessfulCall()
+        {
+            var key = "getstate-closed-" + Guid.NewGuid();
+            var cushion = Cushion.ForService(key)
+                .OpenAfter(failures: 3, within: 5)
+                .HalfOpenAfter(TimeSpan.FromSeconds(30));
+
+            CaromCushionExtensions.Shot(() => 42, cushion, retries: 0);
+
+            Assert.Equal(CircuitState.Closed, Cushion.GetState(key));
+        }
+
+        [Fact]
+        public void GetState_ReturnsOpen_AfterCircuitTrips()
+        {
+            var key = "getstate-open-" + Guid.NewGuid();
+            var cushion = Cushion.ForService(key)
+                .OpenAfter(failures: 1, within: 1)
+                .HalfOpenAfter(TimeSpan.FromSeconds(30));
+
+            try
+            {
+                CaromCushionExtensions.Shot<int>(
+                    () => throw new InvalidOperationException("boom"),
+                    cushion,
+                    retries: 0);
+            }
+            catch (InvalidOperationException) { }
+
+            Assert.Equal(CircuitState.Open, Cushion.GetState(key));
+        }
+
+        #endregion
+
         #region Configuration Tests
 
         [Fact]

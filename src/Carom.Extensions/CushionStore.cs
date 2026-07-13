@@ -76,6 +76,8 @@ namespace Carom.Extensions
                 // Calculate how many to remove (remove 10% to avoid frequent eviction)
                 var toRemove = Math.Max(1, States.Count - MaxSize + MaxSize / 10);
 
+                var scanStartTicks = DateTime.UtcNow.Ticks;
+
                 // Get the oldest entries using allocation-free helper
                 var actualCount = LruEvictionHelper.FindLeastRecentlyUsed(
                     States,
@@ -85,6 +87,15 @@ namespace Carom.Extensions
 
                 for (int i = 0; i < actualCount; i++)
                 {
+                    // Skip entries touched after the scan snapshot: evicting a hot
+                    // entry would recreate its circuit breaker in the Closed state,
+                    // discarding failure history for a service under active load.
+                    if (States.TryGetValue(keysToEvict[i], out var candidate) &&
+                        Volatile.Read(ref candidate.LastAccessTicks) >= scanStartTicks)
+                    {
+                        continue;
+                    }
+
                     States.TryRemove(keysToEvict[i], out _);
                 }
             }
@@ -92,6 +103,22 @@ namespace Carom.Extensions
             {
                 Monitor.Exit(EvictionLock);
             }
+        }
+
+        /// <summary>
+        /// Gets the current circuit state for a service without creating state
+        /// or updating LRU access time (read-only, for monitoring).
+        /// </summary>
+        public static bool TryGetState(string serviceKey, out CircuitState state)
+        {
+            if (States.TryGetValue(serviceKey, out var entry))
+            {
+                state = entry.State.State;
+                return true;
+            }
+
+            state = CircuitState.Closed;
+            return false;
         }
 
         /// <summary>

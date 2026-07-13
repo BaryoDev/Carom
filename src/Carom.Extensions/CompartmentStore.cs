@@ -84,6 +84,8 @@ namespace Carom.Extensions
                 // Calculate how many to remove (remove 10% to avoid frequent eviction)
                 var toRemove = Math.Max(1, _states.Count - MaxSize + MaxSize / 10);
 
+                var scanStartTicks = DateTime.UtcNow.Ticks;
+
                 // Get the oldest entries using allocation-free helper
                 var actualCount = LruEvictionHelper.FindLeastRecentlyUsed(
                     _states,
@@ -93,6 +95,17 @@ namespace Carom.Extensions
 
                 for (int i = 0; i < actualCount; i++)
                 {
+                    // Skip entries touched after the scan snapshot (evicting a hot
+                    // entry would reset its state) or still holding bulkhead slots
+                    // (disposing a SemaphoreSlim with pending waiters/holders is
+                    // undefined behavior and would let the limit be exceeded).
+                    if (!_states.TryGetValue(keysToEvict[i], out var candidate) ||
+                        Volatile.Read(ref candidate.LastAccessTicks) >= scanStartTicks ||
+                        candidate.State.ActiveCount > 0)
+                    {
+                        continue;
+                    }
+
                     if (_states.TryRemove(keysToEvict[i], out var entry))
                     {
                         // Dispose the CompartmentState to release the semaphore

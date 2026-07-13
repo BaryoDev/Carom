@@ -62,11 +62,26 @@ namespace Carom.Http
             InnerHandler = innerHandler;
         }
 
+        /// <summary>
+        /// Whether to retry non-idempotent requests (POST, PATCH).
+        /// Defaults to false: if the server processed a POST but the response was lost
+        /// (a common cause of 502/504 under failover), a retry would duplicate the
+        /// side effect. Retrying also re-serializes the same HttpContent instance,
+        /// which silently sends an empty body for non-rewindable stream content.
+        /// Enable only when requests are idempotent (e.g., carry an idempotency key).
+        /// </summary>
+        public bool RetryNonIdempotentRequests { get; set; }
+
         /// <inheritdoc />
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
+            if (!RetryNonIdempotentRequests && !IsIdempotent(request.Method))
+            {
+                return await base.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            }
+
             return await Carom.ShotAsync(
                 async () =>
                 {
@@ -85,6 +100,19 @@ namespace Carom.Http
                 shouldBounce: IsTransientException,
                 disableJitter: _config.DisableJitter,
                 ct: cancellationToken).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Determines if an HTTP method is idempotent per RFC 9110 and therefore safe to retry.
+        /// </summary>
+        private static bool IsIdempotent(HttpMethod method)
+        {
+            return method == HttpMethod.Get
+                || method == HttpMethod.Head
+                || method == HttpMethod.Options
+                || method == HttpMethod.Put
+                || method == HttpMethod.Delete
+                || method == HttpMethod.Trace;
         }
 
         /// <summary>

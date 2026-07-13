@@ -271,6 +271,7 @@ namespace Carom
                         else
                         {
                             // Task.Delay completed, which means effectiveCt was cancelled (timeout or manual)
+                            ObserveAbandonedTask(task);
                             throw new OperationCanceledException(effectiveCt);
                         }
                     }
@@ -325,7 +326,7 @@ namespace Carom
 
                     // Calculate and wait for the next delay
                     var nextDelay = JitterStrategy.CalculateDelay(delay, previousDelay, disableJitter, attempt + 1);
-                    await Task.Delay(nextDelay, effectiveCt).ConfigureAwait(false);
+                    await BackoffDelayAsync(nextDelay, effectiveCt, timeout, ct).ConfigureAwait(false);
                     previousDelay = nextDelay;
                 }
             }
@@ -383,6 +384,7 @@ namespace Carom
                             return;
                         }
 
+                        ObserveAbandonedTask(task);
                         throw new OperationCanceledException(effectiveCt);
                     }
                     else
@@ -407,12 +409,49 @@ namespace Carom
                     if (attempt >= retries) throw;
 
                     var nextDelay = JitterStrategy.CalculateDelay(delay, previousDelay, disableJitter, attempt + 1);
-                    await Task.Delay(nextDelay, effectiveCt).ConfigureAwait(false);
+                    await BackoffDelayAsync(nextDelay, effectiveCt, timeout, ct).ConfigureAwait(false);
                     previousDelay = nextDelay;
                 }
             }
 
             throw lastException ?? new InvalidOperationException("Retry loop exited unexpectedly");
+        }
+
+        /// <summary>
+        /// Waits out the retry backoff. Runs inside a catch block, where a cancelled
+        /// Task.Delay would bypass the loop's OperationCanceledException handler, so the
+        /// timeout-vs-cancellation translation must be applied here as well.
+        /// </summary>
+        private static async Task BackoffDelayAsync(
+            TimeSpan nextDelay,
+            CancellationToken effectiveCt,
+            TimeSpan? timeout,
+            CancellationToken ct)
+        {
+            try
+            {
+                await Task.Delay(nextDelay, effectiveCt).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (effectiveCt.IsCancellationRequested)
+            {
+                if (timeout.HasValue && !ct.IsCancellationRequested)
+                    throw new TimeoutRejectedException(timeout.Value);
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Attaches a fault observer to a task abandoned after losing the timeout race,
+        /// so its eventual exception never surfaces as an UnobservedTaskException.
+        /// The underlying operation itself cannot be cancelled and continues running.
+        /// </summary>
+        private static void ObserveAbandonedTask(Task task)
+        {
+            _ = task.ContinueWith(
+                static t => _ = t.Exception,
+                CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
         }
 
         /// <summary>

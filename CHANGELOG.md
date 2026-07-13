@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-07-13
+
+### Fixed - Carom Core
+- Timeout expiring during a retry backoff delay now throws `TimeoutRejectedException`
+  instead of leaking a raw `TaskCanceledException`
+- Operations abandoned after a timeout now have their eventual fault observed,
+  preventing `UnobservedTaskException` (the operation itself still runs to
+  completion; it cannot be cancelled without a token-accepting delegate)
+- Decorrelated jitter now honors the 30-second cap when `baseDelay` exceeds 30s
+  (previously the min/max range inverted and delays could exceed the cap)
+
+### Fixed - Carom.Extensions
+- `RingBuffer`'s high-contention fallback read now takes the same lock as
+  writers; it previously used a separate lock object and synchronized with
+  nothing, allowing inconsistent circuit-breaker failure counts during
+  failure storms
+- LRU eviction in `CushionStore`/`ThrottleStore`/`CompartmentStore` no longer
+  evicts entries touched after the eviction scan started (evicting a hot entry
+  silently reset circuit breakers and refilled token buckets)
+- `CompartmentStore` eviction no longer disposes a `CompartmentState` whose
+  semaphore still has active holders
+
+### Added - Carom.Extensions
+- `Cushion.GetState(serviceKey)`: read-only circuit state lookup for
+  monitoring/health checks (returns `null` if the circuit has never been used)
+
+### Fixed - Carom.AspNetCore
+- `AddCaromCircuitBreaker` health check now reports the actual circuit state
+  (Open → failure status, HalfOpen → Degraded, Closed → Healthy); it was
+  previously hardcoded to always return Healthy
+
+### Changed - Carom.Http
+- `CaromHttpHandler` no longer retries non-idempotent requests (POST, PATCH)
+  by default, preventing duplicate side effects and corrupted re-sent stream
+  bodies; opt in via `RetryNonIdempotentRequests = true`
+
 ## [1.4.0] - 2025-12-28
 
 ### Added - Carom.Extensions

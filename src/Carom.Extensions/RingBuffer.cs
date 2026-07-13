@@ -13,7 +13,6 @@ namespace Carom.Extensions
     {
         private readonly T[] _buffer;
         private readonly object _writeLock = new object();
-        private readonly object _fallbackLock = new object();
         private long _index; // Use long to avoid overflow for much longer
         private long _version; // Seqlock version: odd = write in progress, even = stable
 
@@ -134,7 +133,10 @@ namespace Carom.Extensions
         /// </summary>
         private int CountWhereWithLock(Func<T, bool> predicate)
         {
-            lock (_fallbackLock)
+            // Must take the same lock as Add/Reset: a separate lock object would
+            // not exclude concurrent writers, making this "consistent" fallback
+            // an unguarded read of a moving buffer.
+            lock (_writeLock)
             {
                 // Derive count from a single atomic read of _index to avoid TOCTOU
                 var startIdx = Volatile.Read(ref _index);

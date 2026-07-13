@@ -53,6 +53,14 @@ namespace Carom.Extensions
             new CushionBuilder(serviceKey);
 
         /// <summary>
+        /// Gets the current circuit state for a service, or null if no circuit
+        /// breaker has been created for that key yet. Read-only: does not create
+        /// state or affect LRU tracking. Intended for health checks and monitoring.
+        /// </summary>
+        public static CircuitState? GetState(string serviceKey) =>
+            CushionStore.TryGetState(serviceKey, out var state) ? state : (CircuitState?)null;
+
+        /// <summary>
         /// Executes a synchronous action with circuit breaker protection.
         /// Uses atomic state transitions to ensure only one thread executes the test request in half-open state.
         /// </summary>

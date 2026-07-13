@@ -864,16 +864,8 @@ namespace Carom.Extensions.Tests
 
         #endregion
 
-        #region Cleanup
-
-        public RealWorldUseCaseTests()
-        {
-            // Clean state before each test
-            CushionStore.Clear();
-            CompartmentStore.Clear();
-            ThrottleStore.Clear();
-        }
-
-        #endregion
+        // No Clear() constructor: all tests use GUID-suffixed keys, and clearing
+        // the global stores mid-run deletes state belonging to parallel tests
+        // (refilling their token buckets and resetting circuit breakers).
     }
 }

@@ -38,7 +38,9 @@ namespace Carom
 
             // Decorrelated jitter: rand(base, prev * 3)
             // This spreads retries across time, preventing synchronized retry storms
-            var minMs = baseDelay.TotalMilliseconds;
+            // The floor is clamped too: a baseDelay above the cap would otherwise invert
+            // the range and produce delays exceeding the 30-second ceiling.
+            var minMs = Math.Min(baseDelay.TotalMilliseconds, 30000);
             var maxMs = previousDelay.TotalMilliseconds * 3;
 
             // Ensure max is at least min

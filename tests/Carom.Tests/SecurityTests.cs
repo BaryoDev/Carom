@@ -195,7 +195,7 @@ namespace Carom.Tests
                         await Carom.ShotAsync(
                             async () =>
                             {
-                                await Task.Delay(10, cts.Token).ConfigureAwait(false);
+                                await Task.Delay(10, cts.Token);
                                 Interlocked.Increment(ref successCount);
                             },
                             retries: 2,

@@ -76,6 +76,8 @@ namespace Carom.Extensions
                 // Calculate how many to remove (remove 10% to avoid frequent eviction)
                 var toRemove = Math.Max(1, _states.Count - MaxSize + MaxSize / 10);
 
+                var scanStartTicks = DateTime.UtcNow.Ticks;
+
                 // Get the oldest entries using allocation-free helper
                 var actualCount = LruEvictionHelper.FindLeastRecentlyUsed(
                     _states,
@@ -85,6 +87,15 @@ namespace Carom.Extensions
 
                 for (int i = 0; i < actualCount; i++)
                 {
+                    // Skip entries touched after the scan snapshot: evicting a hot
+                    // entry would recreate it with a full token bucket, silently
+                    // bypassing the rate limit.
+                    if (_states.TryGetValue(keysToEvict[i], out var candidate) &&
+                        Volatile.Read(ref candidate.LastAccessTicks) >= scanStartTicks)
+                    {
+                        continue;
+                    }
+
                     _states.TryRemove(keysToEvict[i], out _);
                 }
             }

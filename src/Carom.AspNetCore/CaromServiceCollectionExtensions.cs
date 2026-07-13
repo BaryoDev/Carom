@@ -27,10 +27,10 @@ namespace Carom.AspNetCore
             string[]? tags = null)
         {
             name ??= $"carom_{serviceName}";
-            
+
             return builder.AddCheck(
                 name,
-                new CaromHealthCheck(serviceName, () => Task.FromResult(true)),
+                new CaromCircuitBreakerHealthCheck(serviceName),
                 failureStatus,
                 tags ?? Array.Empty<string>());
         }
