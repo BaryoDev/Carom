@@ -1,7 +1,7 @@
 # Contributing to Carom
 
 Carom is a zero-dependency resilience library for .NET. Contributions are welcome, and this
-document is the whole deal — what's expected, what gets merged, and what gets someone shown the
+document is the whole deal: what's expected, what gets merged, and what gets someone shown the
 door.
 
 Read the ["What this project does not accept"](#what-this-project-does-not-accept) section before
@@ -14,7 +14,7 @@ used to work, where `/take` assigned you instantly.
 
 1. Comment `/take` on the issue you want.
 2. A bot labels it `claim: awaiting approval` and says your request is in.
-3. A maintainer replies `/approve` — you're assigned, and it's yours.
+3. A maintainer replies `/approve`, and it's yours.
 
 Approval is usually a formality and usually quick. It exists so that issues are not claimed in bulk
 by people who have no intention of doing the work, which leaves them looking taken to everyone else.
@@ -26,15 +26,16 @@ Maintainers who comment `/take` are assigned immediately, without the approval s
 assigned for a long time and looks stalled, ask on the thread rather than racing the person who
 holds it.
 
-Once approved: no deadline, and no hard feelings if you change your mind — just say so and someone
+Once approved: no deadline, and no hard feelings if you change your mind. Just say so and someone
 else can pick it up. A draft PR early is very welcome if you'd like eyes on the direction before you
 polish it.
 
 ## What a good pull request looks like
 
 Most issues here, especially those labelled `good first issue`, already contain the diagnosis and
-often the exact code to write. That is deliberate — the analysis is the part that needs repository
-context, and it has been done for you. **The contribution is the remaining work**, which is:
+often the exact code to write. That is deliberate, because the analysis is the part that needs
+repository context and it has been done for you. **The contribution is the remaining work**, which
+is:
 
 - the change itself
 - tests that fail before it and pass after it
@@ -42,7 +43,7 @@ context, and it has been done for you. **The contribution is the remaining work*
 
 Restating an issue's "What should change" section back to the thread is not a contribution and does
 not reserve the issue. Neither is a pull request that changes the described lines and nothing else,
-when the issue asked for more — several issues here ask for a sweep across similar code, a guard so
+when the issue asked for more. Several issues here ask for a sweep across similar code, a guard so
 the bug cannot silently return, or a mutation check proving a test still catches the fault it exists
 to catch. Read the whole issue, including the section about what will cost you an afternoon.
 
@@ -54,7 +55,26 @@ dotnet test -c Release --no-build
 ```
 
 Both must be clean. If your change is performance-sensitive, include BenchmarkDotNet numbers from
-before and after — see `benchmarks/Carom.Benchmarks` and `docs/BENCHMARKS.md`.
+before and after. See `benchmarks/Carom.Benchmarks` and `docs/BENCHMARKS.md`.
+
+## House style
+
+These apply to code, comments, documentation, commit messages, pull request descriptions, and issue
+comments alike.
+
+**No AI attribution anywhere in the repository or its threads.** Do not add "Generated with Claude
+Code", "Co-Authored-By: Claude", "Co-Authored-By: Copilot", `Claude-Session:` trailers, or any
+equivalent bot footer or badge. Using AI tools is fine and it is covered under
+[AI assistance](#what-this-project-does-not-accept) below, but the credit line is noise: it clutters
+`git log`, it survives forever in the history, and it tells a reader nothing about the change. You
+are the author of what you submit, so sign it as yourself and strip the rest before you push. If
+your tooling adds these automatically, turn that off or remove them in a final pass.
+
+**No em dashes.** Use a comma, a colon, a semicolon, parentheses, or two sentences. This one is
+easy to get wrong when pasting from an editor or an AI tool that inserts them by default, so check
+before you push.
+
+**Wrap prose at 100 columns** in Markdown files, matching the existing documents.
 
 ## Coding standards
 
@@ -69,7 +89,7 @@ These are not negotiable in this repository, and a PR that ignores them will be 
 - **MPL-2.0 licence headers** on every source file.
 - **SemVer**, with manual version bumps only.
 
-`CLAUDE.md` has the architectural detail — state classes, store classes, the builder pattern, and
+`CLAUDE.md` has the architectural detail: state classes, store classes, the builder pattern, and
 how the patterns compose.
 
 ## Licensing
@@ -83,7 +103,7 @@ thirty seconds and **you keep copyright of your work**.
 negotiation.** Do not quote a price for fixing an issue, do not invite the maintainers to hire you,
 and do not make starting work conditional on payment. Carom is a volunteer project: there is no
 budget, no procurement process behind the issues, and no rate at which the answer becomes yes. This
-applies on every channel — issues, pull requests, discussions, email, and direct messages alike —
+applies on every channel, including issues, pull requests, discussions, email, and direct messages,
 so moving the same offer somewhere quieter is not a way around it.
 
 Offers of this kind will be declined and the comment may be removed. This is not a judgement of
@@ -96,11 +116,13 @@ product or service, or driving traffic somewhere else.
 **AI assistance is allowed. Unreviewed AI output is not.** Use whatever tools you like, but you are
 the author: you are expected to understand every line you submit, to have built and tested it, and
 to be able to answer questions about it. A pull request whose description or diff makes clear that
-nobody read it before it was sent will be closed without a detailed review.
+nobody read it before it was sent will be closed without a detailed review. See
+[House style](#house-style) for the attribution rule that goes with this.
 
-**Do not open low-value pull requests to farm contribution counts** — whitespace churn, unrequested
-reformatting, speculative dependency bumps, or typo fixes bundled across unrelated files. A genuine
-typo fix in prose is fine and welcome; a hundred of them across the repository in one PR is not.
+**Do not open low-value pull requests to farm contribution counts**, such as whitespace churn,
+unrequested reformatting, speculative dependency bumps, or typo fixes bundled across unrelated
+files. A genuine typo fix in prose is fine and welcome; a hundred of them across the repository in
+one PR is not.
 
 **Do not claim issues in bulk.** Take one, finish it or hand it back, then take another.
 
@@ -111,21 +133,22 @@ following. These are the standard the project holds people to, and they apply fr
 document was published.
 
 1. **Continuing after a maintainer has declined.** One offer, one pitch, one suggestion is fine, and
-   being told no is a complete answer. Repeating it after a decline — on the same thread or by
-   moving to another issue — is grounds on its own.
+   being told no is a complete answer. Repeating it after a decline, on the same thread or by moving
+   to another issue, is grounds on its own.
 2. **Commercial solicitation after being pointed at this policy.** The first time is a
    misunderstanding, and it gets a link to this section. There is no second time.
-3. **Bulk automated commenting** — near-identical comments posted across multiple issues in a single
-   pass, whether by a script or by hand.
+3. **Bulk automated commenting**, meaning near-identical comments posted across multiple issues in a
+   single pass, whether by a script or by hand.
 4. **Bulk issue claims** left unworked, which make open issues look taken and deter people who would
    have done them.
 5. **Harassment, abuse, or discriminatory language**, toward anyone, in any thread. Immediate, no
    warning.
-6. **Deception** — misrepresenting who you are or who you work for, passing off someone else's work
-   as your own, or falsely claiming an affiliation or endorsement.
-7. **Malicious code** in a pull request, including anything that exfiltrates data, adds an undeclared
-   network call, or tampers with the build or release workflows. Immediate, and reported to GitHub.
-8. **Persistent bad-faith argument** — reopening a settled decision repeatedly, or demanding
+6. **Deception**, including misrepresenting who you are or who you work for, passing off someone
+   else's work as your own, or falsely claiming an affiliation or endorsement.
+7. **Malicious code** in a pull request, including anything that exfiltrates data, adds an
+   undeclared network call, or tampers with build or release workflows. Immediate, and reported to
+   GitHub.
+8. **Persistent bad-faith argument**, such as reopening a settled decision repeatedly, or demanding
    maintainer time after being asked to stop.
 
 Blocking is a last resort, and it is about conduct on this repository rather than about anybody's
