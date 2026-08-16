@@ -73,7 +73,7 @@ namespace Carom.Extensions
         /// </summary>
         internal async Task<T> ExecuteAsync<T>(Func<Task<T>> action)
         {
-            var state = ThrottleStore.GetOrCreate(ServiceKey, this);
+            var state = ThrottleStore.GetOrCreate(ServiceKey, serviceKey, this);
 
             if (!state.TryAcquire())
             {
@@ -120,9 +120,4 @@ namespace Carom.Extensions
         }
 
         /// <summary>
-        /// Builds the Throttle configuration.
-        /// </summary>
-        public Throttle Build() =>
-            new Throttle(_serviceKey, _maxRequests, _timeWindow, _burstSize);
-    }
-}
+        /// Builds the Throttle con
