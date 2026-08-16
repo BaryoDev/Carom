@@ -48,7 +48,10 @@ TestResults/
 BenchmarkDotNet.Artifacts/
 
 # Agent/AI files (optional - keep if needed for development)
-.claude/
+# settings.json is checked in on purpose: it carries the house-style hook and
+# the attribution settings, which only work if everyone gets them.
+.claude/*
+!.claude/settings.json
 .cursor/
 .cursorrules
 AI_INSTRUCTIONS.md

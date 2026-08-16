@@ -76,6 +76,11 @@ before you push.
 
 **Wrap prose at 100 columns** in Markdown files, matching the existing documents.
 
+Both rules are checked by CI on every pull request. Run them yourself first with
+`scripts/check-house-style.sh`, which reports the offending file and line. If you use Claude Code,
+`.claude/settings.json` also stops the attribution trailers being generated at all and blocks
+commits and GitHub comments that carry either violation.
+
 ## Coding standards
 
 These are not negotiable in this repository, and a PR that ignores them will be sent back:

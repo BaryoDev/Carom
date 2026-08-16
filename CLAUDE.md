@@ -63,8 +63,11 @@ often broken by AI tooling, so check before you commit. Full text in `CONTRIBUTI
 - **Never use em dashes** (`—`) in prose, code comments, commit messages, documentation, or any
   text posted to a GitHub thread. Use a comma, a colon, a semicolon, parentheses, or two sentences.
 
-Run `scripts/check-house-style.sh` before pushing. It checks added lines and the commit messages
-your branch introduces, and prints the offending line numbers.
+You should not need to remember any of this. `.claude/settings.json` sets `attribution.commit` and
+`attribution.pr` to empty and turns off `sessionUrl`, so the trailers are never generated, and a
+PreToolUse hook (`scripts/hooks/no-ai-attribution.sh`) refuses any `git commit` or GitHub comment
+carrying either violation. Run `scripts/check-house-style.sh` before pushing for the same checks
+over a whole branch; it prints the offending line numbers.
 
 Prose in Markdown files wraps at 100 columns.
 
