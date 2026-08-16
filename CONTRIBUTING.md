@@ -79,11 +79,16 @@ thirty seconds and **you keep copyright of your work**.
 
 ## What this project does not accept
 
-**Paid work is not commissioned through the issue tracker.** Do not quote a price for fixing an
-issue, invite the maintainers to hire you, or make starting work conditional on payment. Carom is a
-volunteer project; there is no budget and there is no procurement process hiding behind the issues.
+**Carom does not pay for contributions. This is a flat no, and it is not the opening of a
+negotiation.** Do not quote a price for fixing an issue, do not invite the maintainers to hire you,
+and do not make starting work conditional on payment. Carom is a volunteer project: there is no
+budget, no procurement process behind the issues, and no rate at which the answer becomes yes. This
+applies on every channel — issues, pull requests, discussions, email, and direct messages alike —
+so moving the same offer somewhere quieter is not a way around it.
+
 Offers of this kind will be declined and the comment may be removed. This is not a judgement of
-freelancing as a way to earn a living — it is simply not what this tracker is for.
+freelancing as a way to earn a living; it is simply not what this project is. Contribute unpaid and
+you are welcome here on exactly the same terms as everyone else.
 
 **Do not use the tracker for solicitation of any other kind**, including recruiting, promoting a
 product or service, or driving traffic somewhere else.
