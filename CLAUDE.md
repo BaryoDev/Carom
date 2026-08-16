@@ -51,6 +51,23 @@ Each resilience pattern follows a consistent architecture:
 - **RingBuffer**: Sliding window tracking for circuit breaker and rate limiter
 - **Decorrelated jitter**: Mandatory exponential backoff with AWS-style jitter formula
 
+## House Style (applies to everything you write here)
+
+These two rules are enforced by CI (`.github/workflows/house-style.yml`) and are the ones most
+often broken by AI tooling, so check before you commit. Full text in `CONTRIBUTING.md`.
+
+- **Never add AI attribution.** No "Generated with Claude Code", no `Co-Authored-By: Claude`, no
+  `Co-Authored-By: Copilot`, no `Claude-Session:` trailer, no bot footer or badge. This covers
+  commit messages, PR titles and descriptions, issue and review comments, and code comments. Using
+  AI tools is fine; the credit line is not. The author is whoever submits the work.
+- **Never use em dashes** (`—`) in prose, code comments, commit messages, documentation, or any
+  text posted to a GitHub thread. Use a comma, a colon, a semicolon, parentheses, or two sentences.
+
+Run `scripts/check-house-style.sh` before pushing. It checks added lines and the commit messages
+your branch introduces, and prints the offending line numbers.
+
+Prose in Markdown files wraps at 100 columns.
+
 ## Coding Standards (BaryoDev)
 
 - **No LINQ in hot paths** - Use `for` loops

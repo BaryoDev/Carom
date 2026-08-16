@@ -1,0 +1,29 @@
+# Enforces the House style section of CONTRIBUTING.md: no em dashes, and no AI
+# attribution footers or trailers.
+#
+# This exists because a written rule only works on people who read it, and the
+# tools most likely to break these two rules are the ones that insert them
+# automatically. The check looks at added lines and at the commit messages the
+# pull request introduces, so pre-existing text never fails somebody else's PR.
+name: House style
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The script needs the base commit and the PR's own commits, so the
+          # default shallow clone will not do.
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Check house style
+        run: scripts/check-house-style.sh "${{ github.event.pull_request.base.sha }}"

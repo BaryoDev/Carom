@@ -22,3 +22,14 @@
 - Skill: `baryo-packaging`
   - Workflow: **Manual Only**. Never auto-publish.
   - Versioning: SemVer (Manual bump).
+
+- Skill: `baryo-house-style`
+  - Enforced by: `.github/workflows/house-style.yml`, `scripts/check-house-style.sh`
+  - Rules:
+    - Never add AI attribution: no "Generated with Claude Code", no
+      `Co-Authored-By: Claude`, no `Co-Authored-By: Copilot`, no `Claude-Session:`
+      trailer, no bot footer or badge. Applies to commits, PRs, issue comments
+      and code comments alike. Using the tools is fine; the credit line is not.
+    - Never use em dashes. Use a comma, colon, semicolon, parentheses, or two
+      sentences.
+    - Wrap Markdown prose at 100 columns.
