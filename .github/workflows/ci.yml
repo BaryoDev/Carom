@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    # The suite is slow for reasons tracked in #11: one test uses 100 retries with no base delay,
+    # so jitter saturates toward the 30 second cap and it alone accounts for most of the runtime.
+    # Generous enough not to flake, tight enough that a hang is not a 6 hour job.
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - run: dotnet restore Carom.sln
+
+      # Release, because Release is what ships. Testing Debug while packing Release means the
+      # assembly consumers install has never had a test run against it.
+      - run: dotnet build Carom.sln --configuration Release --no-restore
+
+      - name: Test
+        run: >
+          dotnet test Carom.sln
+          --configuration Release
+          --no-build
+          --logger "trx;LogFileName=results.trx"
+          --results-directory ${{ github.workspace }}/testresults
+          --verbosity normal
+
+      # A run that discovers no tests exits zero, so the whole job can go green while proving
+      # nothing. Assert a floor and that everything found actually passed.
+      - name: Confirm tests actually ran
+        run: |
+          TOTAL=0
+          PASSED=0
+          for TRX in $(find "${{ github.workspace }}/testresults" -name '*.trx'); do
+            t=$(grep -o 'total="[0-9]*"' "$TRX" | head -1 | grep -o '[0-9]*')
+            p=$(grep -o 'passed="[0-9]*"' "$TRX" | head -1 | grep -o '[0-9]*')
+            TOTAL=$((TOTAL + ${t:-0}))
+            PASSED=$((PASSED + ${p:-0}))
+          done
+          echo "total=$TOTAL passed=$PASSED"
+          test "${TOTAL:-0}" -ge 250 || { echo "::error::Expected at least 250 tests, got ${TOTAL:-0}"; exit 1; }
+          test "$TOTAL" = "$PASSED" || { echo "::error::Not every test passed"; exit 1; }
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: testresults
+          path: ${{ github.workspace }}/testresults
+
+      # Packs every packable project so a broken pack is a pull request failure rather than a
+      # surprise on release day. Three of these were absent from Carom.sln until this branch, so
+      # they were published while never being built by CI at all.
+      - name: Pack
+        run: dotnet pack Carom.sln --configuration Release --no-build --output ./artifacts
+
+      - name: List packages
+        run: ls -la ./artifacts

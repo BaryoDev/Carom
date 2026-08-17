@@ -1,0 +1,56 @@
+namespace Carom.DependencyInjection
+{
+    public static class CaromServiceCollectionExtensions
+    {
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddCaromResilience(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Carom.DependencyInjection.IResiliencePipelineConfigurator> configureAll) { }
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddCaromResilience(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, string name, System.Action<Carom.DependencyInjection.ResiliencePipelineBuilder> configure) { }
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddCaromResilienceRegistry(this Microsoft.Extensions.DependencyInjection.IServiceCollection services) { }
+    }
+    public interface IResiliencePipelineConfigurator
+    {
+        Carom.DependencyInjection.IResiliencePipelineConfigurator AddPipeline(string name, System.Action<Carom.DependencyInjection.ResiliencePipelineBuilder> configure);
+    }
+    public interface IResiliencePipelineRegistry
+    {
+        Carom.DependencyInjection.ResiliencePipeline GetPipeline(string name);
+        bool TryGetPipeline(string name, out Carom.DependencyInjection.ResiliencePipeline? pipeline);
+    }
+    public interface IResilienceStrategy
+    {
+        T Execute<T>(System.Func<T> action);
+        System.Threading.Tasks.Task<T> ExecuteAsync<T>(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<T>> action, System.Threading.CancellationToken ct);
+    }
+    public class ResiliencePipeline
+    {
+        public string Name { get; }
+        public void Execute(System.Action action) { }
+        public T Execute<T>(System.Func<T> action) { }
+        public System.Threading.Tasks.Task ExecuteAsync(System.Func<System.Threading.Tasks.Task> action, System.Threading.CancellationToken ct = default) { }
+        public System.Threading.Tasks.Task ExecuteAsync(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task> action, System.Threading.CancellationToken ct = default) { }
+        public System.Threading.Tasks.Task<T> ExecuteAsync<T>(System.Func<System.Threading.Tasks.Task<T>> action, System.Threading.CancellationToken ct = default) { }
+        public System.Threading.Tasks.Task<T> ExecuteAsync<T>(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<T>> action, System.Threading.CancellationToken ct = default) { }
+    }
+    public class ResiliencePipelineBuilder
+    {
+        public ResiliencePipelineBuilder(string name) { }
+        public Carom.DependencyInjection.ResiliencePipelineBuilder AddBulkhead(string resourceKey, Carom.Extensions.Compartment config) { }
+        public Carom.DependencyInjection.ResiliencePipelineBuilder AddBulkhead(string resourceKey, int maxConcurrency, int queueDepth = 0) { }
+        public Carom.DependencyInjection.ResiliencePipelineBuilder AddCircuitBreaker(string serviceKey, Carom.Extensions.Cushion config) { }
+        public Carom.DependencyInjection.ResiliencePipelineBuilder AddCircuitBreaker(string serviceKey, int failureThreshold, int samplingWindow) { }
+        public Carom.DependencyInjection.ResiliencePipelineBuilder AddFallback<TResult>(System.Func<System.Exception, TResult> fallback) { }
+        public Carom.DependencyInjection.ResiliencePipelineBuilder AddFallback<TResult>(TResult fallbackValue) { }
+        public Carom.DependencyInjection.ResiliencePipelineBuilder AddRateLimit(string serviceKey, Carom.Extensions.Throttle config) { }
+        public Carom.DependencyInjection.ResiliencePipelineBuilder AddRateLimit(string serviceKey, int maxRequests, System.TimeSpan timeWindow) { }
+        public Carom.DependencyInjection.ResiliencePipelineBuilder AddRetry(Carom.Bounce config) { }
+        public Carom.DependencyInjection.ResiliencePipelineBuilder AddRetry(int retries = 3) { }
+        public Carom.DependencyInjection.ResiliencePipelineBuilder AddTimeout(System.TimeSpan timeout) { }
+        public Carom.DependencyInjection.ResiliencePipeline Build() { }
+    }
+    public class ResiliencePipelineRegistry : Carom.DependencyInjection.IResiliencePipelineRegistry
+    {
+        public ResiliencePipelineRegistry() { }
+        public Carom.DependencyInjection.ResiliencePipeline GetPipeline(string name) { }
+        public void Register(string name, Carom.DependencyInjection.ResiliencePipeline pipeline) { }
+        public bool TryGetPipeline(string name, out Carom.DependencyInjection.ResiliencePipeline? pipeline) { }
+    }
+}
