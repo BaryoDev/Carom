@@ -391,7 +391,7 @@ namespace Carom.Tests
 
         #region Resource Exhaustion Tests
 
-        [Fact]
+        [Fact(Timeout = 10000)]
         public void Shot_DoesNotExhaustStack()
         {
             // Deep recursion should not exhaust stack

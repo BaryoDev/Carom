@@ -46,7 +46,7 @@ namespace Carom.Tests
 
         #region Boundary Condition Tests
 
-        [Fact]
+        [Fact(Timeout = 10000)]
         public void Shot_WithZeroRetries_ExecutesOnlyOnce()
         {
             var executionCount = 0;
@@ -60,7 +60,7 @@ namespace Carom.Tests
             Assert.Equal(1, executionCount);
         }
 
-        [Fact]
+        [Fact(Timeout = 10000)]
         public void Shot_WithNegativeRetries_TreatsAsZero()
         {
             var executionCount = 0;
@@ -74,7 +74,7 @@ namespace Carom.Tests
             Assert.Equal(1, executionCount);
         }
 
-        [Fact]
+        [Fact(Timeout = 10000)]
         public void Shot_WithMaxRetries_ExecutesCorrectNumberOfTimes()
         {
             var executionCount = 0;
@@ -86,7 +86,7 @@ namespace Carom.Tests
                 {
                     executionCount++;
                     throw new InvalidOperationException("Always fails");
-                }, retries: maxRetries);
+                }, retries: maxRetries, baseDelay: TimeSpan.Zero);
             }
             catch (InvalidOperationException)
             {
@@ -515,7 +515,7 @@ namespace Carom.Tests
                 {
                     int zero = 0;
                     return 10 / zero;
-                }, retries: 2);
+                }, retries: 2, baseDelay: TimeSpan.FromMilliseconds(1));
             });
         }
 
