@@ -1,0 +1,13 @@
+namespace Carom.Telemetry.OpenTelemetry
+{
+    public static class CaromTelemetry
+    {
+        public const string ActivitySourceName = "Carom";
+        public const string MeterName = "Carom";
+        public static void RecordBulkheadRejection(string resourceKey) { }
+        public static void RecordCircuitBreakerOpen(string serviceName) { }
+        public static void RecordRateLimitRejection(string serviceKey) { }
+        public static void RecordRetry(int attempt, double delayMs, string? exceptionType = null) { }
+        public static System.Diagnostics.Activity? StartActivity(string operationName, System.Diagnostics.ActivityKind kind = 0) { }
+    }
+}

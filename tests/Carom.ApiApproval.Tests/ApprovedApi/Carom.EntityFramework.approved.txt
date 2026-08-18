@@ -1,0 +1,9 @@
+namespace Carom.EntityFramework
+{
+    public static class CaromDbContextExtensions
+    {
+        public static System.Threading.Tasks.Task<T> ExecuteWithRetryAsync<T>(this Microsoft.EntityFrameworkCore.DbContext context, System.Func<System.Threading.Tasks.Task<T>> operation, int retries = 3, System.Threading.CancellationToken cancellationToken = default) { }
+        public static System.Threading.Tasks.Task<int> SaveChangesWithRetryAsync(this Microsoft.EntityFrameworkCore.DbContext context, Carom.Bounce bounce, System.Threading.CancellationToken cancellationToken = default) { }
+        public static System.Threading.Tasks.Task<int> SaveChangesWithRetryAsync(this Microsoft.EntityFrameworkCore.DbContext context, int retries = 3, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+}

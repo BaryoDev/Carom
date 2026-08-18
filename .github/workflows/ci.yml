@@ -1,0 +1,122 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Read-only. Nothing here pushes, tags or releases, so the default write-capable token is
+# more authority than the job needs.
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    # The suite is slow for reasons tracked in #11: one test uses 100 retries with no base delay,
+    # so jitter saturates toward the 30 second cap and it alone accounts for most of the runtime.
+    # Generous enough not to flake, tight enough that a hang is not a 6 hour job.
+    timeout-minutes: 30
+
+    steps:
+      # persist-credentials: false because no step runs an authenticated git or gh command.
+      # Left on, checkout writes the token into .git/config where any later step, including
+      # anything a dependency pulls in, can read it.
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - run: dotnet restore Carom.sln
+
+      # Release, because Release is what ships. Testing Debug while packing Release means the
+      # assembly consumers install has never had a test run against it.
+      - run: dotnet build Carom.sln --configuration Release --no-restore
+
+      # No LogFileName. A solution with four test projects runs four assemblies, and a fixed
+      # name makes each one overwrite the last in the shared results directory, so only the
+      # final assembly's trx survives. The step below then counts 196 of 295 and, worse, would
+      # have counted a green run as complete if the floor happened to be lower.
+      - name: Test
+        run: >
+          dotnet test Carom.sln
+          --configuration Release
+          --no-build
+          --logger "trx"
+          --results-directory ${{ github.workspace }}/testresults
+          --verbosity normal
+
+      # A run that discovers no tests exits zero, so the whole job can go green while proving
+      # nothing. Assert a floor and that everything found actually passed.
+      - name: Confirm tests actually ran
+        run: |
+          TOTAL=0
+          PASSED=0
+          for TRX in $(find "${{ github.workspace }}/testresults" -name '*.trx'); do
+            t=$(grep -o 'total="[0-9]*"' "$TRX" | head -1 | grep -o '[0-9]*')
+            p=$(grep -o 'passed="[0-9]*"' "$TRX" | head -1 | grep -o '[0-9]*')
+            TOTAL=$((TOTAL + ${t:-0}))
+            PASSED=$((PASSED + ${p:-0}))
+          done
+          echo "total=$TOTAL passed=$PASSED"
+          test "${TOTAL:-0}" -ge 250 || { echo "::error::Expected at least 250 tests, got ${TOTAL:-0}"; exit 1; }
+          test "$TOTAL" = "$PASSED" || { echo "::error::Not every test passed"; exit 1; }
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: testresults
+          path: ${{ github.workspace }}/testresults
+
+      # Packs every packable project so a broken pack is a pull request failure rather than a
+      # surprise on release day. Three of these were absent from Carom.sln until this branch, so
+      # they were published while never being built by CI at all.
+      - name: Pack
+        run: dotnet pack Carom.sln --configuration Release --no-build --output ./artifacts
+
+      # `ls -la` was diagnostic, not a check: it succeeds whenever any package exists, so a
+      # missing package or a newly-packable example would both have passed. The point of this
+      # branch is that the set is exactly right, so assert the set.
+      - name: Verify the package set
+        shell: bash
+        run: |
+          set -uo pipefail
+          expected="Carom Carom.AspNetCore Carom.DependencyInjection Carom.EntityFramework Carom.Extensions Carom.Http Carom.Telemetry.OpenTelemetry"
+
+          # Strip the version and the .nupkg to get the package id. Symbol packages are excluded
+          # so a .snupkg alongside a .nupkg is not counted as a second package.
+          actual=$(find ./artifacts -maxdepth 1 -name '*.nupkg' ! -name '*.symbols.nupkg' -exec basename {} \; \
+                   | sed -E 's/\.[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?\.nupkg$//' | sort -u)
+
+          echo "packed:"; printf '  %s\n' $actual
+
+          fail=0
+          for want in $expected; do
+            printf '%s\n' "$actual" | grep -Fxq "$want" || { echo "::error::Missing package: $want"; fail=1; }
+          done
+
+          # Named explicitly rather than inferred. The example is IsPackable=false today, and this
+          # is what notices the day somebody removes that line.
+          if printf '%s\n' "$actual" | grep -Fxq "Carom.Examples.WebApi"; then
+            echo "::error::Carom.Examples.WebApi was packed. The example must not ship as a package."
+            fail=1
+          fi
+
+          count=$(printf '%s\n' "$actual" | grep -c . || true)
+          want_count=$(printf '%s\n' $expected | grep -c .)
+          if [ "$count" -ne "$want_count" ]; then
+            echo "::error::Expected exactly $want_count packages, found $count. A new packable project needs adding to this list."
+            fail=1
+          fi
+
+          test "$fail" -eq 0 || exit 1
+          echo "Package set is exactly right."

@@ -1,0 +1,25 @@
+namespace Carom.Http
+{
+    public static class CaromHttpExtensions
+    {
+        public static Microsoft.Extensions.DependencyInjection.IHttpClientBuilder AddCaromResilience(this Microsoft.Extensions.DependencyInjection.IHttpClientBuilder builder) { }
+        public static Microsoft.Extensions.DependencyInjection.IHttpClientBuilder AddCaromResilience(this Microsoft.Extensions.DependencyInjection.IHttpClientBuilder builder, Carom.Bounce config) { }
+        public static Microsoft.Extensions.DependencyInjection.IHttpClientBuilder AddCaromResilience(this Microsoft.Extensions.DependencyInjection.IHttpClientBuilder builder, System.Func<Carom.Bounce, Carom.Bounce> configure) { }
+        public static Microsoft.Extensions.DependencyInjection.IHttpClientBuilder AddCaromResilience(this Microsoft.Extensions.DependencyInjection.IHttpClientBuilder builder, int retries) { }
+    }
+    public class CaromHttpHandler : System.Net.Http.DelegatingHandler
+    {
+        public CaromHttpHandler() { }
+        public CaromHttpHandler(Carom.Bounce config) { }
+        public CaromHttpHandler(int retries) { }
+        public CaromHttpHandler(System.Net.Http.HttpMessageHandler innerHandler) { }
+        public CaromHttpHandler(System.Net.Http.HttpMessageHandler innerHandler, Carom.Bounce config) { }
+        public bool RetryNonIdempotentRequests { get; set; }
+        protected override System.Threading.Tasks.Task<System.Net.Http.HttpResponseMessage> SendAsync(System.Net.Http.HttpRequestMessage request, System.Threading.CancellationToken cancellationToken) { }
+    }
+    public class TransientHttpException : System.Net.Http.HttpRequestException
+    {
+        public TransientHttpException(string message, System.Net.HttpStatusCode statusCode) { }
+        public System.Net.HttpStatusCode StatusCode { get; }
+    }
+}

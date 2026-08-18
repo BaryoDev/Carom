@@ -1,0 +1,122 @@
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("Carom.DependencyInjection")]
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("Carom.Extensions.Tests")]
+namespace Carom.Extensions
+{
+    public static class CaromCompartmentExtensions
+    {
+        public static T Shot<T>(System.Func<T> action, Carom.Extensions.Compartment compartment, Carom.Bounce bounce) { }
+        public static T Shot<T>(System.Func<T> action, Carom.Extensions.Compartment compartment, int retries = 3, System.TimeSpan? baseDelay = default, System.Func<System.Exception, bool>? shouldBounce = null, bool disableJitter = false) { }
+        public static System.Threading.Tasks.Task<T> ShotAsync<T>(System.Func<System.Threading.Tasks.Task<T>> action, Carom.Extensions.Compartment compartment, Carom.Bounce bounce, System.Threading.CancellationToken ct = default) { }
+        public static System.Threading.Tasks.Task<T> ShotAsync<T>(System.Func<System.Threading.Tasks.Task<T>> action, Carom.Extensions.Compartment compartment, int retries = 3, System.TimeSpan? baseDelay = default, System.Func<System.Exception, bool>? shouldBounce = null, bool disableJitter = false, System.Threading.CancellationToken ct = default) { }
+    }
+    public static class CaromCushionExtensions
+    {
+        public static T Shot<T>(System.Func<T> action, Carom.Extensions.Cushion cushion, Carom.Bounce bounce) { }
+        public static T Shot<T>(System.Func<T> action, Carom.Extensions.Cushion cushion, int retries = 3, System.TimeSpan? baseDelay = default, System.Func<System.Exception, bool>? shouldBounce = null, bool disableJitter = false) { }
+        public static System.Threading.Tasks.Task<T> ShotAsync<T>(System.Func<System.Threading.Tasks.Task<T>> action, Carom.Extensions.Cushion cushion, Carom.Bounce bounce, System.Threading.CancellationToken ct = default) { }
+        public static System.Threading.Tasks.Task<T> ShotAsync<T>(System.Func<System.Threading.Tasks.Task<T>> action, Carom.Extensions.Cushion cushion, int retries = 3, System.TimeSpan? baseDelay = default, System.Func<System.Exception, bool>? shouldBounce = null, bool disableJitter = false, System.Threading.CancellationToken ct = default) { }
+    }
+    public static class CaromFallbackExtensions
+    {
+        public static T Pocket<T>(this System.Func<T> action, System.Func<T> fallbackFn) { }
+        public static T Pocket<T>(this System.Func<T> action, System.Func<System.Exception, T> fallbackFn) { }
+        public static T Pocket<T>(this System.Func<T> action, T fallback) { }
+        public static System.Threading.Tasks.Task<T> PocketAsync<T>(this System.Func<System.Threading.Tasks.Task<T>> action, System.Func<System.Threading.Tasks.Task<T>> fallbackFn, System.Threading.CancellationToken ct = default) { }
+        public static System.Threading.Tasks.Task<T> PocketAsync<T>(this System.Func<System.Threading.Tasks.Task<T>> action, System.Func<T> fallbackFn, System.Threading.CancellationToken ct = default) { }
+        public static System.Threading.Tasks.Task<T> PocketAsync<T>(this System.Func<System.Threading.Tasks.Task<T>> action, System.Func<System.Exception, System.Threading.Tasks.Task<T>> fallbackFn, System.Threading.CancellationToken ct = default) { }
+        public static System.Threading.Tasks.Task<T> PocketAsync<T>(this System.Func<System.Threading.Tasks.Task<T>> action, T fallback, System.Threading.CancellationToken ct = default) { }
+        public static T ShotWithPocket<T>(System.Func<T> action, T fallback, int retries = 3, System.TimeSpan? baseDelay = default) { }
+        public static System.Threading.Tasks.Task<T> ShotWithPocketAsync<T>(System.Func<System.Threading.Tasks.Task<T>> action, T fallback, int retries = 3, System.TimeSpan? baseDelay = default, System.Threading.CancellationToken ct = default) { }
+    }
+    public static class CaromMasseExtensions
+    {
+        public static System.Threading.Tasks.Task<T> ShotWithHedgingAsync<T>(System.Func<System.Threading.Tasks.Task<T>> action, Carom.Extensions.Masse config, System.Threading.CancellationToken ct = default) { }
+        public static System.Threading.Tasks.Task<T> ShotWithHedgingAsync<T>(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<T>> action, Carom.Extensions.Masse config, System.Threading.CancellationToken ct = default) { }
+    }
+    public static class CaromThrottleExtensions
+    {
+        public static T Shot<T>(System.Func<T> action, Carom.Extensions.Throttle throttle, Carom.Bounce bounce) { }
+        public static T Shot<T>(System.Func<T> action, Carom.Extensions.Throttle throttle, int retries = 3, System.TimeSpan? baseDelay = default, System.Func<System.Exception, bool>? shouldBounce = null, bool disableJitter = false) { }
+        public static System.Threading.Tasks.Task<T> ShotAsync<T>(System.Func<System.Threading.Tasks.Task<T>> action, Carom.Extensions.Throttle throttle, Carom.Bounce bounce, System.Threading.CancellationToken ct = default) { }
+        public static System.Threading.Tasks.Task<T> ShotAsync<T>(System.Func<System.Threading.Tasks.Task<T>> action, Carom.Extensions.Throttle throttle, int retries = 3, System.TimeSpan? baseDelay = default, System.Func<System.Exception, bool>? shouldBounce = null, bool disableJitter = false, System.Threading.CancellationToken ct = default) { }
+    }
+    public class CircuitOpenException : System.Exception
+    {
+        public CircuitOpenException(string serviceKey) { }
+        public CircuitOpenException(string serviceKey, System.Exception innerException) { }
+        public string ServiceKey { get; }
+    }
+    public enum CircuitState
+    {
+        Closed = 0,
+        Open = 1,
+        HalfOpen = 2,
+    }
+    public readonly struct Compartment
+    {
+        public int MaxConcurrency { get; }
+        public int QueueDepth { get; }
+        public string ResourceKey { get; }
+        public static Carom.Extensions.CompartmentBuilder ForResource(string resourceKey) { }
+    }
+    public class CompartmentBuilder
+    {
+        public Carom.Extensions.Compartment Build() { }
+        public Carom.Extensions.CompartmentBuilder WithMaxConcurrency(int max) { }
+        public Carom.Extensions.CompartmentBuilder WithQueueDepth(int depth) { }
+    }
+    public class CompartmentFullException : System.Exception
+    {
+        public CompartmentFullException(string resourceKey, int maxConcurrency) { }
+        public CompartmentFullException(string resourceKey, int maxConcurrency, System.Exception innerException) { }
+        public int MaxConcurrency { get; }
+        public string ResourceKey { get; }
+    }
+    public readonly struct Cushion
+    {
+        public int FailureThreshold { get; }
+        public System.TimeSpan HalfOpenDelay { get; }
+        public int SamplingWindow { get; }
+        public string ServiceKey { get; }
+        public static Carom.Extensions.CushionBuilder ForService(string serviceKey) { }
+        public static Carom.Extensions.CircuitState? GetState(string serviceKey) { }
+    }
+    public class CushionBuilder
+    {
+        public Carom.Extensions.Cushion HalfOpenAfter(System.TimeSpan delay) { }
+        public Carom.Extensions.CushionBuilder OpenAfter(int failures, int within) { }
+    }
+    public readonly struct Masse
+    {
+        public bool CancelPendingOnSuccess { get; }
+        public System.TimeSpan HedgeDelay { get; }
+        public int MaxHedgedAttempts { get; }
+        public System.Func<object?, bool>? ShouldHedge { get; }
+        public Carom.Extensions.Masse After(System.TimeSpan delay) { }
+        public Carom.Extensions.Masse When(System.Func<object?, bool> predicate) { }
+        public Carom.Extensions.Masse WithCancellation(bool cancel) { }
+        public static Carom.Extensions.Masse WithAttempts(int count) { }
+    }
+    public readonly struct Throttle
+    {
+        public int BurstSize { get; }
+        public int MaxRequests { get; }
+        public string ServiceKey { get; }
+        public System.TimeSpan TimeWindow { get; }
+        public static Carom.Extensions.ThrottleBuilder ForService(string serviceKey) { }
+    }
+    public class ThrottleBuilder
+    {
+        public Carom.Extensions.Throttle Build() { }
+        public Carom.Extensions.ThrottleBuilder WithBurst(int burstSize) { }
+        public Carom.Extensions.ThrottleBuilder WithRate(int maxRequests, System.TimeSpan per) { }
+    }
+    public class ThrottledException : System.Exception
+    {
+        public ThrottledException(string serviceKey, int maxRequests, System.TimeSpan timeWindow) { }
+        public ThrottledException(string serviceKey, int maxRequests, System.TimeSpan timeWindow, System.Exception innerException) { }
+        public int MaxRequests { get; }
+        public string ServiceKey { get; }
+        public System.TimeSpan TimeWindow { get; }
+    }
+}

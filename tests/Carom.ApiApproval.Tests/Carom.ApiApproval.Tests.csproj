@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="PublicApiGenerator" Version="11.1.0" />
+    <PackageReference Include="xunit" Version="2.5.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
+  </ItemGroup>
+
+  <!--
+    Every packable project, not only the ones anyone remembered. Three of these
+    (Carom.AspNetCore, Carom.EntityFramework, Carom.Telemetry.OpenTelemetry) were absent from
+    Carom.sln, so they were published to NuGet while never being built or tested by CI at all.
+    Referencing them here pulls them into the solution build as well as pinning their surface.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="../../src/Carom/Carom.csproj" />
+    <ProjectReference Include="../../src/Carom.AspNetCore/Carom.AspNetCore.csproj" />
+    <ProjectReference Include="../../src/Carom.DependencyInjection/Carom.DependencyInjection.csproj" />
+    <ProjectReference Include="../../src/Carom.EntityFramework/Carom.EntityFramework.csproj" />
+    <ProjectReference Include="../../src/Carom.Extensions/Carom.Extensions.csproj" />
+    <ProjectReference Include="../../src/Carom.Http/Carom.Http.csproj" />
+    <ProjectReference Include="../../src/Carom.Telemetry.OpenTelemetry/Carom.Telemetry.OpenTelemetry.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="ApprovedApi/**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>
