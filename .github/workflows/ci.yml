@@ -32,12 +32,16 @@ jobs:
       # assembly consumers install has never had a test run against it.
       - run: dotnet build Carom.sln --configuration Release --no-restore
 
+      # No LogFileName. A solution with four test projects runs four assemblies, and a fixed
+      # name makes each one overwrite the last in the shared results directory, so only the
+      # final assembly's trx survives. The step below then counts 196 of 295 and, worse, would
+      # have counted a green run as complete if the floor happened to be lower.
       - name: Test
         run: >
           dotnet test Carom.sln
           --configuration Release
           --no-build
-          --logger "trx;LogFileName=results.trx"
+          --logger "trx"
           --results-directory ${{ github.workspace }}/testresults
           --verbosity normal
 
