@@ -38,8 +38,8 @@ namespace Carom.Extensions
                 throw new ArgumentException("Max requests must be at least 1", nameof(maxRequests));
             if (timeWindow <= TimeSpan.Zero)
                 throw new ArgumentException("Time window must be positive", nameof(timeWindow));
-            if (burstSize < maxRequests)
-                throw new ArgumentException("Burst size must be >= max requests", nameof(burstSize));
+            if (burstSize < 1)
+                throw new ArgumentException("Burst size must be at least 1", nameof(burstSize));
 
             ServiceKey = serviceKey;
             MaxRequests = maxRequests;
@@ -93,6 +93,7 @@ namespace Carom.Extensions
         private int _maxRequests = 100;
         private TimeSpan _timeWindow = TimeSpan.FromSeconds(1);
         private int _burstSize = 100;
+        private bool _burstSet;
 
         internal ThrottleBuilder(string serviceKey)
         {
@@ -106,7 +107,6 @@ namespace Carom.Extensions
         {
             _maxRequests = maxRequests;
             _timeWindow = per;
-            _burstSize = maxRequests; // Default burst to max requests
             return this;
         }
 
@@ -116,13 +116,17 @@ namespace Carom.Extensions
         public ThrottleBuilder WithBurst(int burstSize)
         {
             _burstSize = burstSize;
+            _burstSet = true;
             return this;
         }
 
         /// <summary>
         /// Builds the Throttle configuration.
         /// </summary>
-        public Throttle Build() =>
-            new Throttle(_serviceKey, _maxRequests, _timeWindow, _burstSize);
+        public Throttle Build()
+        {
+            var burstSize = _burstSet ? _burstSize : _maxRequests;
+            return new Throttle(_serviceKey, _maxRequests, _timeWindow, burstSize);
+        }
     }
 }
