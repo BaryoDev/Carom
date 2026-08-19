@@ -28,17 +28,23 @@ namespace Carom.Extensions
             // Try to get existing entry first
             if (_states.TryGetValue(serviceKey, out var existingEntry))
             {
-                if (existingEntry.MaxRequests != config.MaxRequests || existingEntry.BurstSize != config.BurstSize)
+                if (existingEntry.MaxRequests != config.MaxRequests
+                    || existingEntry.BurstSize != config.BurstSize
+                    || existingEntry.TimeWindow != config.TimeWindow)
+                {
                     throw new InvalidOperationException(
-                        $"Service '{serviceKey}' already registered with MaxRequests={existingEntry.MaxRequests}, BurstSize={existingEntry.BurstSize}, " +
-                        $"but requested MaxRequests={config.MaxRequests}, BurstSize={config.BurstSize}. Configuration changes for existing keys are not supported.");
+                        $"Service '{serviceKey}' already registered with MaxRequests={existingEntry.MaxRequests}, " +
+                        $"BurstSize={existingEntry.BurstSize}, TimeWindow={existingEntry.TimeWindow}, " +
+                        $"but requested MaxRequests={config.MaxRequests}, BurstSize={config.BurstSize}, " +
+                        $"TimeWindow={config.TimeWindow}. Configuration changes for existing keys are not supported.");
+                }
                 existingEntry.Touch();
                 return existingEntry.State;
             }
 
             // Create new entry
             var newState = new ThrottleState(config.MaxRequests, config.TimeWindow, config.BurstSize);
-            var newEntry = new ThrottleStateEntry(newState, config.MaxRequests, config.BurstSize);
+            var newEntry = new ThrottleStateEntry(newState, config.MaxRequests, config.BurstSize, config.TimeWindow);
 
             // Try to add, handling race condition
             var entry = _states.GetOrAdd(serviceKey, newEntry);
@@ -131,13 +137,15 @@ namespace Carom.Extensions
             public ThrottleState State { get; }
             public int MaxRequests { get; }
             public int BurstSize { get; }
+            public TimeSpan TimeWindow { get; }
             public long LastAccessTicks;
 
-            public ThrottleStateEntry(ThrottleState state, int maxRequests, int burstSize)
+            public ThrottleStateEntry(ThrottleState state, int maxRequests, int burstSize, TimeSpan timeWindow)
             {
                 State = state;
                 MaxRequests = maxRequests;
                 BurstSize = burstSize;
+                TimeWindow = timeWindow;
                 LastAccessTicks = DateTime.UtcNow.Ticks;
             }
 
