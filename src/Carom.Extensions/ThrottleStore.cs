@@ -28,16 +28,7 @@ namespace Carom.Extensions
             // Try to get existing entry first
             if (_states.TryGetValue(serviceKey, out var existingEntry))
             {
-                if (existingEntry.MaxRequests != config.MaxRequests
-                    || existingEntry.BurstSize != config.BurstSize
-                    || existingEntry.TimeWindow != config.TimeWindow)
-                {
-                    throw new InvalidOperationException(
-                        $"Service '{serviceKey}' already registered with MaxRequests={existingEntry.MaxRequests}, " +
-                        $"BurstSize={existingEntry.BurstSize}, TimeWindow={existingEntry.TimeWindow}, " +
-                        $"but requested MaxRequests={config.MaxRequests}, BurstSize={config.BurstSize}, " +
-                        $"TimeWindow={config.TimeWindow}. Configuration changes for existing keys are not supported.");
-                }
+                ThrowIfConflicting(serviceKey, existingEntry, config);
                 existingEntry.Touch();
                 return existingEntry.State;
             }
@@ -49,6 +40,17 @@ namespace Carom.Extensions
             // Try to add, handling race condition
             var entry = _states.GetOrAdd(serviceKey, newEntry);
 
+            // Checked again, because losing this race is indistinguishable from finding an existing
+            // entry above. Two callers can both miss the TryGetValue and only one of them adds; the
+            // other is handed the winner's entry, and without this it would silently run on a refill
+            // interval it never asked for. Validating only the TryGetValue branch would make a
+            // conflicting registration throw when it happens sequentially and pass under load, which
+            // reads as an intermittent fault rather than a configuration error.
+            if (!ReferenceEquals(entry, newEntry))
+            {
+                ThrowIfConflicting(serviceKey, entry, config);
+            }
+
             // Check if we need to evict
             if (_states.Count > MaxSize)
             {
@@ -57,6 +59,29 @@ namespace Carom.Extensions
 
             entry.Touch();
             return entry.State;
+        }
+
+        /// <summary>
+        /// Rejects a registration that disagrees with the entry already holding the key.
+        /// </summary>
+        /// <remarks>
+        /// One method rather than two copies on purpose: the sequential path and the lost-race path
+        /// have to enforce the same rule, and a rule written twice is a rule that drifts.
+        /// </remarks>
+        private static void ThrowIfConflicting(string serviceKey, ThrottleStateEntry entry, Throttle config)
+        {
+            if (entry.MaxRequests == config.MaxRequests
+                && entry.BurstSize == config.BurstSize
+                && entry.TimeWindow == config.TimeWindow)
+            {
+                return;
+            }
+
+            throw new InvalidOperationException(
+                $"Service '{serviceKey}' already registered with MaxRequests={entry.MaxRequests}, " +
+                $"BurstSize={entry.BurstSize}, TimeWindow={entry.TimeWindow}, " +
+                $"but requested MaxRequests={config.MaxRequests}, BurstSize={config.BurstSize}, " +
+                $"TimeWindow={config.TimeWindow}. Configuration changes for existing keys are not supported.");
         }
 
         /// <summary>
