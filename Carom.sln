@@ -35,6 +35,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Carom.Telemetry.OpenTelemet
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Carom.ApiApproval.Tests", "tests\Carom.ApiApproval.Tests\Carom.ApiApproval.Tests.csproj", "{F448FBD4-64EC-46AA-8949-3B4D3BFF1E20}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Carom.Http.Tests", "tests\Carom.Http.Tests\Carom.Http.Tests.csproj", "{A11D2EF2-B963-455C-AC9A-B4862C9CFC29}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -201,6 +203,18 @@ Global
 		{F448FBD4-64EC-46AA-8949-3B4D3BFF1E20}.Release|x64.Build.0 = Release|Any CPU
 		{F448FBD4-64EC-46AA-8949-3B4D3BFF1E20}.Release|x86.ActiveCfg = Release|Any CPU
 		{F448FBD4-64EC-46AA-8949-3B4D3BFF1E20}.Release|x86.Build.0 = Release|Any CPU
+		{A11D2EF2-B963-455C-AC9A-B4862C9CFC29}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A11D2EF2-B963-455C-AC9A-B4862C9CFC29}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A11D2EF2-B963-455C-AC9A-B4862C9CFC29}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{A11D2EF2-B963-455C-AC9A-B4862C9CFC29}.Debug|x64.Build.0 = Debug|Any CPU
+		{A11D2EF2-B963-455C-AC9A-B4862C9CFC29}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{A11D2EF2-B963-455C-AC9A-B4862C9CFC29}.Debug|x86.Build.0 = Debug|Any CPU
+		{A11D2EF2-B963-455C-AC9A-B4862C9CFC29}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A11D2EF2-B963-455C-AC9A-B4862C9CFC29}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A11D2EF2-B963-455C-AC9A-B4862C9CFC29}.Release|x64.ActiveCfg = Release|Any CPU
+		{A11D2EF2-B963-455C-AC9A-B4862C9CFC29}.Release|x64.Build.0 = Release|Any CPU
+		{A11D2EF2-B963-455C-AC9A-B4862C9CFC29}.Release|x86.ActiveCfg = Release|Any CPU
+		{A11D2EF2-B963-455C-AC9A-B4862C9CFC29}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -216,5 +230,6 @@ Global
 		{9B527C2A-65D5-4B62-99ED-6ED7F0265B40} = {C595A6A7-8B69-4CC0-90FB-DD1D573D7352}
 		{165F5DE0-AD25-479F-B660-D8641C23E0B0} = {C595A6A7-8B69-4CC0-90FB-DD1D573D7352}
 		{F448FBD4-64EC-46AA-8949-3B4D3BFF1E20} = {92C92E59-A76E-4AB2-842A-AF22E07901C0}
+		{A11D2EF2-B963-455C-AC9A-B4862C9CFC29} = {92C92E59-A76E-4AB2-842A-AF22E07901C0}
 	EndGlobalSection
 EndGlobal

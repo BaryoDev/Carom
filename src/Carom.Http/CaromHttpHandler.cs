@@ -82,6 +82,19 @@ namespace Carom.Http
                 return await base.SendAsync(request, cancellationToken).ConfigureAwait(false);
             }
 
+            // Buffered before the first attempt, because every attempt re-sends this same request and
+            // a forward-only body is already consumed by the time the second one runs. The failure
+            // without this is silent rather than loud: no exception, the retry simply sends an empty
+            // body and the server answers it. Measured before fixing, with a forward-only stream:
+            // two calls, bodies ["payload", ""].
+            //
+            // The cost is holding the body in memory, which is why retry stays off for
+            // non-idempotent methods unless asked for.
+            if (request.Content != null)
+            {
+                await request.Content.LoadIntoBufferAsync().ConfigureAwait(false);
+            }
+
             return await Carom.ShotAsync(
                 async () =>
                 {
