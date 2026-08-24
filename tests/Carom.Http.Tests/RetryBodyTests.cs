@@ -158,11 +158,16 @@ public class RetryBodyTests
         // StringContent declares Content-Length, so the handler can tell it is oversize before
         // touching the body and send it once intact. A forward-only body with no declared length
         // cannot be checked in advance; that case is covered below.
-        var response = await client.PutAsync(
-            "http://localhost/thing", new StringContent("a body comfortably over eight bytes"));
+        const string body = "a body comfortably over eight bytes";
+        var response = await client.PutAsync("http://localhost/thing", new StringContent(body));
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
         Assert.Equal(1, inner.Calls);
+
+        // The body matters as much as the count. Skipping the retry is only correct if the one
+        // request that does go out carries the whole body; asserting the count alone would pass on
+        // an empty or truncated send, which is the defect this file exists to catch.
+        Assert.Equal(new[] { body }, inner.Bodies);
     }
 
     /// <summary>
