@@ -72,6 +72,20 @@ namespace Carom.Http
         /// </summary>
         public bool RetryNonIdempotentRequests { get; set; }
 
+        /// <summary>
+        /// The largest request body, in bytes, that will be buffered so a retry can re-send it.
+        /// Defaults to 1 MiB. A body larger than this is sent once, without retries.
+        /// </summary>
+        /// <remarks>
+        /// A retried request re-sends the same message, so its body has to be replayable, and making
+        /// a forward-only body replayable means holding it in memory. Without a bound that is the
+        /// whole upload, on the way to a request that may well succeed on the first attempt.
+        ///
+        /// Over the bound the request is sent once rather than refused. Retry is an optimisation and
+        /// a large body is a reason to skip it, not a reason to fail the call.
+        /// </remarks>
+        public long MaxRetryBufferBytes { get; set; } = 1024 * 1024;
+
         /// <inheritdoc />
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
@@ -80,6 +94,47 @@ namespace Carom.Http
             if (!RetryNonIdempotentRequests && !IsIdempotent(request.Method))
             {
                 return await base.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            }
+
+            // Buffered before the first attempt, because every attempt re-sends this same request and
+            // a forward-only body is already consumed by the time the second one runs. The failure
+            // without this is silent rather than loud: no exception, the retry simply sends an empty
+            // body and the server answers it. Measured before fixing, with a forward-only stream:
+            // two calls, bodies ["payload", ""].
+            //
+            // Bounded, and a body over the bound is sent once rather than refused. LoadIntoBufferAsync
+            // defaults to int.MaxValue, so an unbounded upload would be held whole in memory on the
+            // way to a request that may well succeed first time. Retry is an optimisation; a large
+            // body is a reason to skip it, not a reason to fail the call.
+            if (request.Content != null)
+            {
+                var declaredLength = request.Content.Headers.ContentLength;
+
+                if (declaredLength > MaxRetryBufferBytes)
+                {
+                    // Known to be too big, and nothing has touched the body yet, so it can still be
+                    // sent exactly once. Retry is an optimisation; a large upload is a reason to skip
+                    // it rather than to fail the call.
+                    return await base.SendAsync(request, cancellationToken).ConfigureAwait(false);
+                }
+
+                // Unknown length, or known and within the bound. LoadIntoBufferAsync partially
+                // consumes the stream before it throws on overflow, so there is no falling back to an
+                // unbuffered send from here: the body is already damaged. Saying so is better than
+                // sending a truncated one.
+                try
+                {
+                    await request.Content.LoadIntoBufferAsync(MaxRetryBufferBytes).ConfigureAwait(false);
+                }
+                catch (HttpRequestException ex)
+                {
+                    throw new HttpRequestException(
+                        $"The request body exceeded MaxRetryBufferBytes ({MaxRetryBufferBytes}) and its "
+                        + "length was not declared, so it could not be buffered for retry and cannot now "
+                        + "be sent unbuffered. Raise MaxRetryBufferBytes, set Content-Length, or use a "
+                        + "handler without retry for this request.",
+                        ex);
+                }
             }
 
             return await Carom.ShotAsync(

@@ -14,6 +14,7 @@ namespace Carom.Http
         public CaromHttpHandler(int retries) { }
         public CaromHttpHandler(System.Net.Http.HttpMessageHandler innerHandler) { }
         public CaromHttpHandler(System.Net.Http.HttpMessageHandler innerHandler, Carom.Bounce config) { }
+        public long MaxRetryBufferBytes { get; set; }
         public bool RetryNonIdempotentRequests { get; set; }
         protected override System.Threading.Tasks.Task<System.Net.Http.HttpResponseMessage> SendAsync(System.Net.Http.HttpRequestMessage request, System.Threading.CancellationToken cancellationToken) { }
     }
