@@ -139,6 +139,72 @@ public class RetryBodyTests
         Assert.Equal(1, inner.Calls);
     }
 
+    /// <summary>
+    /// A body over the buffer bound is sent once rather than refused.
+    /// </summary>
+    /// <remarks>
+    /// Making a forward-only body replayable means holding it in memory, so an unbounded upload
+    /// would be buffered whole on the way to a request that may succeed first time. Over the bound
+    /// the retry is skipped, which is what would have happened before any buffering existed.
+    /// Refusing the call instead would turn a memory concern into an outage.
+    /// </remarks>
+    [Fact]
+    public async Task A_body_over_the_buffer_bound_is_sent_once_and_not_retried()
+    {
+        var inner = new RecordingHandler(failFirst: 1);
+        var handler = new CaromHttpHandler { InnerHandler = inner, MaxRetryBufferBytes = 8 };
+        using var client = new HttpClient(handler);
+
+        // StringContent declares Content-Length, so the handler can tell it is oversize before
+        // touching the body and send it once intact. A forward-only body with no declared length
+        // cannot be checked in advance; that case is covered below.
+        var response = await client.PutAsync(
+            "http://localhost/thing", new StringContent("a body comfortably over eight bytes"));
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.Equal(1, inner.Calls);
+    }
+
+    /// <summary>
+    /// An oversize body of unknown length reports why rather than sending a truncated one.
+    /// </summary>
+    /// <remarks>
+    /// LoadIntoBufferAsync partially consumes the stream before throwing on overflow, so there is no
+    /// unbuffered send to fall back to: the body is already damaged. Discovered by testing the
+    /// fallback, which failed with "The stream was already consumed."
+    /// </remarks>
+    [Fact]
+    public async Task An_oversize_body_of_unknown_length_reports_why()
+    {
+        var inner = new RecordingHandler(failFirst: 1);
+        var handler = new CaromHttpHandler { InnerHandler = inner, MaxRetryBufferBytes = 8 };
+        using var client = new HttpClient(handler);
+
+        var ex = await Assert.ThrowsAsync<HttpRequestException>(() =>
+            client.PutAsync("http://localhost/thing", ForwardOnly("a body comfortably over eight bytes")));
+
+        Assert.Contains("MaxRetryBufferBytes", ex.Message);
+    }
+
+    /// <summary>
+    /// The control for the bound: a body under it still retries.
+    /// </summary>
+    /// <remarks>
+    /// Without this, the test above is satisfied by a handler that never retries anything.
+    /// </remarks>
+    [Fact]
+    public async Task A_body_under_the_buffer_bound_still_retries()
+    {
+        var inner = new RecordingHandler(failFirst: 1);
+        var handler = new CaromHttpHandler { InnerHandler = inner, MaxRetryBufferBytes = 1024 };
+        using var client = new HttpClient(handler);
+
+        await client.PutAsync("http://localhost/thing", ForwardOnly("payload"));
+
+        Assert.Equal(2, inner.Calls);
+        Assert.Equal(new[] { "payload", "payload" }, inner.Bodies);
+    }
+
     [Fact]
     public async Task A_post_that_opts_in_keeps_its_body_across_retries()
     {
