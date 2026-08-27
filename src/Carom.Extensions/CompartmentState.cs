@@ -14,6 +14,7 @@ namespace Carom.Extensions
         private readonly int _maxConcurrency;
         private readonly int _queueDepth;
         private int _activeCount;
+        private int _queued;
         private int _disposed; // 0 = not disposed, 1 = disposed
 
         public CompartmentState(int maxConcurrency, int queueDepth)
@@ -23,7 +24,7 @@ namespace Carom.Extensions
 
             // Fix: maxCount should be maxConcurrency, not maxConcurrency + queueDepth
             // The semaphore's initial and max count represent available slots
-            // Queue depth is handled by waiting/timing out, not by the semaphore count
+            // Queue depth bounds waiters via _queued, not the semaphore count
             _semaphore = new SemaphoreSlim(maxConcurrency, maxConcurrency);
         }
 
@@ -43,7 +44,16 @@ namespace Carom.Extensions
         public int QueueDepth => _queueDepth;
 
         /// <summary>
+        /// Gets the current number of callers waiting for a slot.
+        /// </summary>
+        public int QueuedCount => Volatile.Read(ref _queued);
+
+        /// <summary>
         /// Attempts to enter the compartment synchronously.
+        /// A free slot is taken immediately. Otherwise, if the queue has room, the
+        /// caller reserves a queue place and waits for a slot; past the bound it is
+        /// shed immediately, because an unbounded wait queue is the failure a
+        /// bulkhead exists to prevent.
         /// </summary>
         public bool TryEnter()
         {
@@ -54,33 +64,37 @@ namespace Carom.Extensions
                 Interlocked.Increment(ref _activeCount);
                 return true;
             }
-            return false;
-        }
 
-        /// <summary>
-        /// Attempts to enter the compartment synchronously with a timeout.
-        /// Uses queue depth to determine wait time.
-        /// </summary>
-        public bool TryEnter(TimeSpan timeout)
-        {
-            ThrowIfDisposed();
-
-            // If queue depth is 0, don't wait at all
             if (_queueDepth == 0)
             {
-                return TryEnter();
+                return false;
             }
 
-            if (_semaphore.Wait(timeout))
+            // Reserve the queue place before waiting, so the bound is enforced at
+            // reservation time and a caller past it sheds without ever parking.
+            if (Interlocked.Increment(ref _queued) > _queueDepth)
             {
+                Interlocked.Decrement(ref _queued);
+                return false;
+            }
+
+            try
+            {
+                _semaphore.Wait();
                 Interlocked.Increment(ref _activeCount);
                 return true;
             }
-            return false;
+            finally
+            {
+                Interlocked.Decrement(ref _queued);
+            }
         }
 
         /// <summary>
         /// Attempts to enter the compartment asynchronously.
+        /// Same contract as <see cref="TryEnter()"/>; the queue-place reservation
+        /// happens synchronously before the first await, so callers hold their place
+        /// by the time this method returns its task.
         /// </summary>
         public async Task<bool> TryEnterAsync(CancellationToken ct = default)
         {
@@ -93,36 +107,28 @@ namespace Carom.Extensions
                     Interlocked.Increment(ref _activeCount);
                     return true;
                 }
-                return false;
-            }
-            catch (OperationCanceledException)
-            {
-                return false;
-            }
-        }
 
-        /// <summary>
-        /// Attempts to enter the compartment asynchronously with a timeout.
-        /// Uses queue depth to determine wait time.
-        /// </summary>
-        public async Task<bool> TryEnterAsync(TimeSpan timeout, CancellationToken ct = default)
-        {
-            ThrowIfDisposed();
-
-            // If queue depth is 0, don't wait at all
-            if (_queueDepth == 0)
-            {
-                return await TryEnterAsync(ct).ConfigureAwait(false);
-            }
-
-            try
-            {
-                if (await _semaphore.WaitAsync(timeout, ct).ConfigureAwait(false))
+                if (_queueDepth == 0)
                 {
+                    return false;
+                }
+
+                if (Interlocked.Increment(ref _queued) > _queueDepth)
+                {
+                    Interlocked.Decrement(ref _queued);
+                    return false;
+                }
+
+                try
+                {
+                    await _semaphore.WaitAsync(ct).ConfigureAwait(false);
                     Interlocked.Increment(ref _activeCount);
                     return true;
                 }
-                return false;
+                finally
+                {
+                    Interlocked.Decrement(ref _queued);
+                }
             }
             catch (OperationCanceledException)
             {
