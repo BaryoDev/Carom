@@ -9,6 +9,12 @@ namespace Carom
     /// </summary>
     internal static class JitterStrategy
     {
+        /// <summary>
+        /// Ceiling for any computed delay, jittered or fixed. Also clamps the floor,
+        /// so a baseDelay above the cap cannot invert the jitter range.
+        /// </summary>
+        internal const double MaxDelayMilliseconds = 30000;
+
         [ThreadStatic]
         private static Random? _random;
 
@@ -30,17 +36,17 @@ namespace Carom
         {
             if (disableJitter)
             {
-                // Fixed exponential backoff: base * 2^attempt, capped at 30 seconds
+                // Fixed exponential backoff: base * 2^attempt, capped
                 var multiplier = Math.Pow(2, attempt);
                 var delayMs = baseDelay.TotalMilliseconds * multiplier;
-                return TimeSpan.FromMilliseconds(Math.Min(delayMs, 30000));
+                return TimeSpan.FromMilliseconds(Math.Min(delayMs, MaxDelayMilliseconds));
             }
 
             // Decorrelated jitter: rand(base, prev * 3)
             // This spreads retries across time, preventing synchronized retry storms
             // The floor is clamped too: a baseDelay above the cap would otherwise invert
             // the range and produce delays exceeding the 30-second ceiling.
-            var minMs = Math.Min(baseDelay.TotalMilliseconds, 30000);
+            var minMs = Math.Min(baseDelay.TotalMilliseconds, MaxDelayMilliseconds);
             var maxMs = previousDelay.TotalMilliseconds * 3;
 
             // Ensure max is at least min
@@ -49,8 +55,8 @@ namespace Carom
                 maxMs = minMs * 3;
             }
 
-            // Cap the maximum delay at 30 seconds
-            maxMs = Math.Min(maxMs, 30000);
+            // Cap the maximum delay
+            maxMs = Math.Min(maxMs, MaxDelayMilliseconds);
 
             var jitteredMs = minMs + (Random.NextDouble() * (maxMs - minMs));
             return TimeSpan.FromMilliseconds(jitteredMs);

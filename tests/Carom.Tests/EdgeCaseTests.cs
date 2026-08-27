@@ -46,52 +46,59 @@ namespace Carom.Tests
 
         #region Boundary Condition Tests
 
+        // These tests return Task and run the synchronous call inside Task.Run because
+        // xUnit only enforces Timeout on Task-returning tests; on a void test the
+        // attribute is silently ignored (issue #18, proved by experiment on #16).
+
         [Fact(Timeout = 10000)]
-        public void Shot_WithZeroRetries_ExecutesOnlyOnce()
+        public async Task Shot_WithZeroRetries_ExecutesOnlyOnce()
         {
             var executionCount = 0;
-            var result = Carom.Shot(() =>
+            var result = await Task.Run(() => Carom.Shot(() =>
             {
                 executionCount++;
                 return executionCount;
-            }, retries: 0);
+            }, retries: 0));
 
             Assert.Equal(1, result);
             Assert.Equal(1, executionCount);
         }
 
         [Fact(Timeout = 10000)]
-        public void Shot_WithNegativeRetries_TreatsAsZero()
+        public async Task Shot_WithNegativeRetries_TreatsAsZero()
         {
             var executionCount = 0;
-            var result = Carom.Shot(() =>
+            var result = await Task.Run(() => Carom.Shot(() =>
             {
                 executionCount++;
                 return executionCount;
-            }, retries: -1);
+            }, retries: -1));
 
             Assert.Equal(1, result);
             Assert.Equal(1, executionCount);
         }
 
         [Fact(Timeout = 10000)]
-        public void Shot_WithMaxRetries_ExecutesCorrectNumberOfTimes()
+        public async Task Shot_WithMaxRetries_ExecutesCorrectNumberOfTimes()
         {
             var executionCount = 0;
             var maxRetries = 100;
 
-            try
+            await Task.Run(() =>
             {
-                Carom.Shot<int>(() =>
+                try
                 {
-                    executionCount++;
-                    throw new InvalidOperationException("Always fails");
-                }, retries: maxRetries, baseDelay: TimeSpan.Zero);
-            }
-            catch (InvalidOperationException)
-            {
-                // Expected
-            }
+                    Carom.Shot<int>(() =>
+                    {
+                        executionCount++;
+                        throw new InvalidOperationException("Always fails");
+                    }, retries: maxRetries, baseDelay: TimeSpan.Zero);
+                }
+                catch (InvalidOperationException)
+                {
+                    // Expected
+                }
+            });
 
             Assert.Equal(maxRetries + 1, executionCount); // Initial attempt + retries
         }
