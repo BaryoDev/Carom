@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Threading;
 
 namespace Carom.Extensions
@@ -13,15 +14,23 @@ namespace Carom.Extensions
         private int _failureCount;
         private int _successCount;
         private long _lastFailureTicks;
-        private long _openedAtTicks;
+        private long _openedAtTimestamp;
+        private int _hasOpened; // 0 = never opened, 1 = opened at least once
         private readonly RingBuffer<bool> _recentResults;
+
+        // Monotonic timestamp source in Stopwatch.Frequency units. DateTime.UtcNow
+        // moves backwards on NTP corrections and jumps forward on VM resume; a
+        // backwards step used to extend the open period by the size of the step.
+        // Injectable so tests can drive the clock instead of sleeping.
+        private readonly Func<long> _timestamp;
 
         public CircuitState State => (CircuitState)Volatile.Read(ref _state);
 
-        public CushionState(int samplingWindow)
+        public CushionState(int samplingWindow, Func<long>? timestamp = null)
         {
             _recentResults = new RingBuffer<bool>(samplingWindow);
             _state = (int)CircuitState.Closed;
+            _timestamp = timestamp ?? Stopwatch.GetTimestamp;
         }
 
         /// <summary>
@@ -64,7 +73,7 @@ namespace Carom.Extensions
                 // Atomically transition from Closed to Open only
                 if (Interlocked.CompareExchange(ref _state, (int)CircuitState.Open, (int)CircuitState.Closed) == (int)CircuitState.Closed)
                 {
-                    Interlocked.Exchange(ref _openedAtTicks, DateTime.UtcNow.Ticks);
+                    MarkOpened();
                     return true;
                 }
             }
@@ -90,7 +99,16 @@ namespace Carom.Extensions
         public void Open()
         {
             Interlocked.Exchange(ref _state, (int)CircuitState.Open);
-            Interlocked.Exchange(ref _openedAtTicks, DateTime.UtcNow.Ticks);
+            MarkOpened();
+        }
+
+        // The timestamp is written before the flag: a reader that sees the flag is
+        // guaranteed a valid timestamp. A raw zero sentinel would misread a fake
+        // clock that legitimately starts at zero.
+        private void MarkOpened()
+        {
+            Interlocked.Exchange(ref _openedAtTimestamp, _timestamp());
+            Interlocked.Exchange(ref _hasOpened, 1);
         }
 
         /// <summary>
@@ -108,11 +126,11 @@ namespace Carom.Extensions
         /// </summary>
         public bool CanAttemptReset(TimeSpan halfOpenDelay)
         {
-            var openedAtTicks = Volatile.Read(ref _openedAtTicks);
-            if (openedAtTicks == 0) return false;
+            if (Volatile.Read(ref _hasOpened) == 0) return false;
+            var openedAt = Volatile.Read(ref _openedAtTimestamp);
 
-            var elapsed = DateTime.UtcNow.Ticks - openedAtTicks;
-            return elapsed >= halfOpenDelay.Ticks;
+            var elapsedSeconds = (double)(_timestamp() - openedAt) / Stopwatch.Frequency;
+            return elapsedSeconds >= halfOpenDelay.TotalSeconds;
         }
 
         /// <summary>

@@ -15,16 +15,25 @@ namespace Carom.Extensions
 
         private readonly int _maxRequests;
         private readonly int _burstSize;
-        private readonly long _refillIntervalTicks;
-        private readonly long _startTicks; // Use DateTime.UtcNow.Ticks instead of Stopwatch for zero allocation
+        private readonly long _refillIntervalTicks; // in timestamp units, not TimeSpan ticks
+        private readonly long _startTicks;
+
+        // Monotonic timestamp source in Stopwatch.Frequency units. The previous
+        // DateTime.UtcNow reading stalled the bucket entirely when NTP stepped the
+        // clock backwards (negative elapsed never reaches the refill interval), and
+        // refilled the whole burst at once when it jumped forwards. The old comment
+        // claimed Stopwatch was avoided for allocation reasons; Stopwatch.GetTimestamp
+        // is a static long-returning method and allocates nothing.
+        private readonly Func<long> _timestamp;
 
         private long _tokens; // Fixed-point: actual tokens * 1000
         private long _lastRefillTicks;
 
-        public ThrottleState(int maxRequests, TimeSpan timeWindow, int burstSize)
+        public ThrottleState(int maxRequests, TimeSpan timeWindow, int burstSize, Func<long>? timestamp = null)
         {
             _maxRequests = maxRequests;
             _burstSize = burstSize;
+            _timestamp = timestamp ?? Stopwatch.GetTimestamp;
 
             // Prevent division by zero
             if (timeWindow.Ticks == 0 || maxRequests == 0)
@@ -33,10 +42,11 @@ namespace Carom.Extensions
             }
             else
             {
-                _refillIntervalTicks = Math.Max(1, timeWindow.Ticks / maxRequests);
+                _refillIntervalTicks = Math.Max(1,
+                    (long)(timeWindow.TotalSeconds / maxRequests * Stopwatch.Frequency));
             }
 
-            _startTicks = DateTime.UtcNow.Ticks;
+            _startTicks = _timestamp();
 
             // Start with full bucket
             _tokens = (long)burstSize * 1000;
@@ -90,7 +100,7 @@ namespace Carom.Extensions
         /// </summary>
         private void RefillTokens()
         {
-            var currentTicks = DateTime.UtcNow.Ticks - _startTicks;
+            var currentTicks = _timestamp() - _startTicks;
             var lastTicks = Volatile.Read(ref _lastRefillTicks);
             var elapsedTicks = currentTicks - lastTicks;
 
