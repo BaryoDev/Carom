@@ -9,7 +9,7 @@ namespace Carom.Extensions
     /// </summary>
     public static class CaromCushionExtensions
     {
-        private static bool DefaultShouldBounce(Exception ex) => ex is not CircuitOpenException;
+        internal static bool DefaultShouldBounce(Exception ex) => ex is not CircuitOpenException;
 
         /// <summary>
         /// Executes a synchronous shot with circuit breaker protection.
@@ -38,7 +38,11 @@ namespace Carom.Extensions
         {
             return global::Carom.Carom.Shot(
                 () => cushion.Execute(action),
-                bounce);
+                bounce.Retries,
+                bounce.BaseDelay,
+                bounce.ShouldBounce ?? DefaultShouldBounce,
+                shouldRetryResult: null,
+                bounce.DisableJitter);
         }
 
         /// <summary>
@@ -74,7 +78,12 @@ namespace Carom.Extensions
         {
             return global::Carom.Carom.ShotAsync(
                 () => cushion.ExecuteAsync(action),
-                bounce,
+                bounce.Retries,
+                bounce.BaseDelay,
+                bounce.Timeout,
+                bounce.ShouldBounce ?? DefaultShouldBounce,
+                shouldRetryResult: null,
+                bounce.DisableJitter,
                 ct);
         }
     }

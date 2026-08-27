@@ -9,7 +9,7 @@ namespace Carom.Extensions
     /// </summary>
     public static class CaromCompartmentExtensions
     {
-        private static bool DefaultShouldBounce(Exception ex) => ex is not CompartmentFullException;
+        internal static bool DefaultShouldBounce(Exception ex) => ex is not CompartmentFullException;
 
         /// <summary>
         /// Executes a synchronous shot with bulkhead protection.
@@ -37,7 +37,11 @@ namespace Carom.Extensions
         {
             return global::Carom.Carom.Shot(
                 () => compartment.Execute(action),
-                bounce);
+                bounce.Retries,
+                bounce.BaseDelay,
+                bounce.ShouldBounce ?? DefaultShouldBounce,
+                shouldRetryResult: null,
+                bounce.DisableJitter);
         }
 
         /// <summary>
@@ -73,7 +77,12 @@ namespace Carom.Extensions
         {
             return global::Carom.Carom.ShotAsync(
                 () => compartment.ExecuteAsync(action, ct),
-                bounce,
+                bounce.Retries,
+                bounce.BaseDelay,
+                bounce.Timeout,
+                bounce.ShouldBounce ?? DefaultShouldBounce,
+                shouldRetryResult: null,
+                bounce.DisableJitter,
                 ct);
         }
     }
