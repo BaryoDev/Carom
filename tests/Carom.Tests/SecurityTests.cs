@@ -392,11 +392,12 @@ namespace Carom.Tests
         #region Resource Exhaustion Tests
 
         [Fact(Timeout = 10000)]
-        public void Shot_DoesNotExhaustStack()
+        public async Task Shot_DoesNotExhaustStack()
         {
             // Deep recursion should not exhaust stack
             // Retry logic should be iterative, not recursive
-            var result = Carom.Shot(() => 42, retries: 1000);
+            // Task-returning so the Timeout is enforced; xUnit ignores it on void tests
+            var result = await Task.Run(() => Carom.Shot(() => 42, retries: 1000));
             Assert.Equal(42, result);
         }
 
