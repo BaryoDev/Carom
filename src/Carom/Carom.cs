@@ -152,6 +152,8 @@ namespace Carom
 
         /// <summary>
         /// Executes an action with retry logic using a Bounce configuration.
+        /// A timeout set via <see cref="Bounce.WithTimeout"/> is ignored on this
+        /// synchronous path; use ShotAsync if the timeout must be enforced.
         /// </summary>
         /// <typeparam name="T">The return type of the action.</typeparam>
         /// <param name="action">The action to execute.</param>
