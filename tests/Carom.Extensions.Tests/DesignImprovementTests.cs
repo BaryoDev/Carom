@@ -441,10 +441,12 @@ namespace Carom.Extensions.Tests
         [Fact]
         public async Task CompartmentState_SemaphoreMaxCount_EqualsMaxConcurrency()
         {
-            // Verify semaphore max count equals maxConcurrency, not maxConcurrency + queueDepth
+            // Verify semaphore max count equals maxConcurrency, not maxConcurrency + queueDepth.
+            // Queue depth is 0 here because a positive depth makes a full TryEnter wait for a
+            // slot rather than return false; queueing behaviour is covered by
+            // CompartmentQueueDepthTests.
             var maxConcurrency = 5;
-            var queueDepth = 10;
-            var state = new CompartmentState(maxConcurrency, queueDepth);
+            var state = new CompartmentState(maxConcurrency, 0);
 
             // Should be able to enter exactly maxConcurrency times without waiting
             for (int i = 0; i < maxConcurrency; i++)
