@@ -384,6 +384,7 @@ namespace Carom.Extensions.Tests
 
             var allowedCount = 0;
             var throttledCount = 0;
+            var elapsed = Stopwatch.StartNew();
 
             // Try to flood with requests
             for (int i = 0; i < 100; i++)
@@ -406,12 +407,17 @@ namespace Carom.Extensions.Tests
                 }
             }
 
-            // Should enforce rate limit - burst + some refills allowed
-            // With 10 burst + time for refills during 100 iterations, expect less than 50
-            Assert.True(allowedCount <= 50,
-                $"Expected at most ~50 requests, got {allowedCount}");
-            Assert.True(throttledCount >= 50,
-                $"Expected at least ~50 throttled, got {throttledCount}");
+            elapsed.Stop();
+
+            // Should enforce rate limit - burst + refills for as long as the loop
+            // actually ran. 100 sequential awaits stretch arbitrarily on a loaded
+            // runner, so the bound must come from measured time, like the stress
+            // test in RealWorldUseCaseTests.
+            var refillBudget = (int)Math.Ceiling(elapsed.Elapsed.TotalSeconds * 10) + 5;
+            Assert.True(allowedCount <= 10 + refillBudget,
+                $"Expected at most burst + refill for {elapsed.ElapsedMilliseconds}ms, got {allowedCount}");
+            Assert.True(throttledCount >= 100 - (10 + refillBudget),
+                $"Expected the rest throttled, got {throttledCount}");
         }
 
         [Fact]
