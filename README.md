@@ -8,6 +8,8 @@
 
 Carom is a zero-dependency resilience library that enforces best practices by default. Named after the billiards shot where the ball bounces before reaching its target, Carom helps your code gracefully handle failures.
 
+Runs on .NET 10 and .NET 8. The core packages target `netstandard2.0`, so .NET Framework and older .NET are supported too; the ASP.NET Core, EF Core and OpenTelemetry packages target `net8.0;net10.0`. Tests run on both runtimes in CI.
+
 ## 🎯 Why Carom?
 
 - **Zero Dependencies** (core packages)
