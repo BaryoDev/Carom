@@ -7,7 +7,7 @@
 
     <!-- Package Metadata -->
     <PackageId>Carom.Extensions</PackageId>
-    <Version>1.4.0</Version>
+    <Version>1.6.0</Version>
     <Authors>Baryo.Dev</Authors>
     <Company>Baryo.Dev</Company>
     <Description>Advanced resilience patterns for Carom: Circuit Breaker, Fallback, Bulkhead, and Rate Limiting. Zero external dependencies. Lock-free implementations for maximum performance. Extends Carom core with production-grade patterns.</Description>

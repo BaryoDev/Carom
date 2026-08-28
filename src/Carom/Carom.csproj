@@ -8,7 +8,7 @@
     
     <!-- Package Metadata -->
     <PackageId>Carom</PackageId>
-    <Version>1.3.0</Version>
+    <Version>1.6.0</Version>
     <Authors>Baryo.Dev</Authors>
     <Company>Baryo.Dev</Company>
     <Description>Carom: Physics-based, zero-dependency resilience library for .NET. Enforces decorrelated jitter by default to prevent Thundering Herd issues. Includes retry with exponential backoff and timeout support. Lean, fast, and safe.</Description>
