@@ -485,6 +485,7 @@ namespace Carom.Extensions.Tests
             var allowed = 0;
             var throttled = 0;
             var barrier = new Barrier(50);
+            var elapsed = Stopwatch.StartNew();
 
             var tasks = Enumerable.Range(0, 50).Select(i => Task.Run(async () =>
             {
@@ -508,11 +509,16 @@ namespace Carom.Extensions.Tests
             }));
 
             await Task.WhenAll(tasks);
+            elapsed.Stop();
 
             Assert.Equal(500, allowed + throttled);
-            // Rate limiter should allow roughly burst + some refill
-            Assert.True(allowed <= 150,
-                $"Should allow at most burst + refill, got {allowed}");
+            // The limiter refills for as long as the storm actually runs, so the
+            // bound must come from measured time. A fixed bound assumed the storm
+            // finished in ~500ms and failed a correct limiter on a loaded CI
+            // runner where it took ~700ms (the 1.7.0 publish, allowed = 170).
+            var refillBudget = (int)Math.Ceiling(elapsed.Elapsed.TotalSeconds * 100) + 10;
+            Assert.True(allowed <= 100 + refillBudget,
+                $"Should allow at most burst + refill for {elapsed.ElapsedMilliseconds}ms, got {allowed}");
         }
 
         [Fact]
