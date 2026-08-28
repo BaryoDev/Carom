@@ -4,9 +4,11 @@
 
 [![NuGet](https://img.shields.io/nuget/v/Carom.svg)](https://www.nuget.org/packages/Carom/)
 [![License](https://img.shields.io/badge/license-MPL--2.0-blue.svg)](LICENSE)
-[![.NET](https://img.shields.io/badge/.NET-netstandard2.0%20%7C%20net8.0-512BD4)](https://dotnet.microsoft.com/)
+[![.NET](https://img.shields.io/badge/.NET-netstandard2.0%20%7C%20net8.0%20%7C%20net10.0-512BD4)](https://dotnet.microsoft.com/)
 
 Carom is a zero-dependency resilience library that enforces best practices by default. Named after the billiards shot where the ball bounces before reaching its target, Carom helps your code gracefully handle failures.
+
+Runs on .NET 10 and .NET 8. The core packages target `netstandard2.0`, so .NET Framework and older .NET are supported too; the ASP.NET Core, EF Core and OpenTelemetry packages target `net8.0;net10.0`. Tests run on both runtimes in CI.
 
 ## 🎯 Why Carom?
 

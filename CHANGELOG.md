@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2026-08-28
+
+### Added
+- `Carom.AspNetCore`, `Carom.EntityFramework` and `Carom.Telemetry.OpenTelemetry`
+  target `net8.0;net10.0`. The core packages stay `netstandard2.0` and already
+  run on .NET 10. Tests run on both runtimes in CI
+- `Carom.EntityFramework` references EF Core 8.0.30 on net8.0 and EF Core
+  10.0.0 on net10.0
+
+### Changed
+- Dependency floors with known vulnerabilities raised: EF Core 8.0.0 pulled
+  Microsoft.Extensions.Caching.Memory 8.0.0 (GHSA-qj66-m88j-hmgj, high) and
+  OpenTelemetry.Api 1.7.0 carried GHSA-g94r-2vxg-569j (moderate, patched in
+  1.15.3)
+
 ## [1.6.0] - 2026-08-28
 
 ### Fixed - Carom.Extensions

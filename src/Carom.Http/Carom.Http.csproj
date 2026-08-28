@@ -8,7 +8,7 @@
     
     <!-- Package Metadata -->
     <PackageId>Carom.Http</PackageId>
-    <Version>1.6.0</Version>
+    <Version>1.7.0</Version>
     <Authors>Baryo.Dev</Authors>
     <Company>Baryo.Dev</Company>
     <Description>HTTP integration for Carom resilience library. Provides DelegatingHandler for automatic retry on transient HTTP errors (503, 408, 429, 504, 502). Integrates seamlessly with HttpClientFactory and ASP.NET Core.</Description>
