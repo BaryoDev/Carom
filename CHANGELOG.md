@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-08-28
+
+### Fixed - Carom.Extensions
+- The `Bounce` overloads of `Shot`/`ShotAsync` now apply the same fail-fast
+  default as the `retries:` overloads: a `CircuitOpenException`,
+  `ThrottledException` or `CompartmentFullException` is no longer retried with
+  full backoff. `Bounce.Times(3)` against an open circuit used to pay the whole
+  jittered backoff on every rejected call. A caller-supplied predicate still
+  wins. The async `Bounce` overloads also honor `Bounce.WithTimeout`, which
+  they previously dropped
+- `Compartment.QueueDepth` now does what its documentation always said: up to
+  `QueueDepth` callers wait for a slot, anything past the bound is shed
+  immediately. It was stored, validated and never read; depth 10 behaved
+  exactly like depth 0
+- `Masse` hedging honors `HedgeDelay` between attempts. A completed but
+  unsatisfactory result used to shortcut the wait, launching every remaining
+  attempt as fast as the loop could go (4 attempts in 12ms against a 500ms
+  delay). When every attempt succeeds but none satisfies `ShouldHedge`, the
+  last result is returned instead of an `AggregateException` with zero inner
+  exceptions
+- Circuit half-open timing and token-bucket refill read a monotonic clock
+  (`Stopwatch.GetTimestamp`) instead of `DateTime.UtcNow`. A backwards NTP
+  step used to extend the open period by the size of the step and stall the
+  bucket entirely; a forwards jump refilled the whole burst at once
+- `ThrottleStore` rejects a second registration whose `TimeWindow` disagrees
+  with the existing one, matching what it already did for the other settings
+- `Throttle.WithRate` validates its arguments instead of silently building a
+  limiter that always throws
+
+### Fixed - Carom.Http
+- `CaromHttpHandler` buffers the request body so a retry actually resends it;
+  a retried `StreamContent` used to go out empty
+
+### Changed - Carom
+- `Bounce.WithTimeout` documents that the timeout is honored only on the
+  async path; the synchronous `Shot` overloads have no cancellation mechanism
+  and ignore it
+
 ## [1.5.0] - 2026-07-13
 
 ### Fixed - Carom Core
