@@ -57,7 +57,7 @@ Each resilience pattern follows a consistent architecture:
 - **Zero allocations** - Use `struct` and `Span<T>`
 - **Zero external dependencies** in core packages
 - **Expression Trees over Reflection** for meta-programming
-- **xUnit with Verdict style** (Fluent Assertions patterns)
+- **xUnit with plain `Assert`**, no assertion libraries
 - **Benchmarks required** for performance-critical changes (BenchmarkDotNet)
 - **License**: MPL-2.0 headers on all source files
 - **Versioning**: SemVer with manual bumps only

@@ -1,3 +1,6 @@
+// Copyright (c) BaryoDev. All rights reserved.
+// Licensed under the MPL-2.0 license. See LICENSE file in the project root for full license information.
+
 using Carom.Extensions;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using System;
