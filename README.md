@@ -15,7 +15,7 @@ Runs on .NET 10 and .NET 8. The core packages target `netstandard2.0`, so .NET F
 - **Zero Dependencies** (core packages)
 - **Minimal Allocations** (<100 bytes on hot path)
 - **Safe by Default** (mandatory decorrelated jitter)
-- **Tiny Footprint** (13KB core, 20KB extensions)
+- **Tiny Footprint** (19KB core, 50KB extensions)
 - **Fully Composable** (all patterns work together)
 
 ## 📦 Packages
