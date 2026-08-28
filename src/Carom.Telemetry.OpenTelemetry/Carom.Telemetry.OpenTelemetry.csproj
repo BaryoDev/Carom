@@ -1,14 +1,14 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
 
     <!-- Package Metadata -->
     <PackageId>Carom.Telemetry.OpenTelemetry</PackageId>
-    <Version>1.6.0</Version>
+    <Version>1.7.0</Version>
     <Authors>Baryo.Dev</Authors>
     <Company>Baryo.Dev</Company>
     <Description>OpenTelemetry integration for Carom resilience library. Provides automatic metrics, traces, and activity tracking for all Carom resilience patterns.</Description>
@@ -32,7 +32,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="OpenTelemetry.Api" Version="1.7.0" />
+    <PackageReference Include="OpenTelemetry.Api" Version="1.15.3" />
   </ItemGroup>
 
 </Project>

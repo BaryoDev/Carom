@@ -1,14 +1,14 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
 
     <!-- Package Metadata -->
     <PackageId>Carom.EntityFramework</PackageId>
-    <Version>1.6.0</Version>
+    <Version>1.7.0</Version>
     <Authors>Baryo.Dev</Authors>
     <Company>Baryo.Dev</Company>
     <Description>Entity Framework Core integration for Carom resilience library. Provides automatic retry for transient database errors with EF Core DbContext.</Description>
@@ -31,7 +31,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.30" Condition="'$(TargetFramework)' == 'net8.0'" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.0" Condition="'$(TargetFramework)' == 'net10.0'" />
   </ItemGroup>
 
 </Project>
