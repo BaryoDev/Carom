@@ -5,11 +5,13 @@ namespace Carom
     {
         public System.TimeSpan BaseDelay { get; }
         public bool DisableJitter { get; }
+        public System.TimeSpan MaxDelay { get; }
         public int Retries { get; }
         public System.Func<System.Exception, bool>? ShouldBounce { get; }
         public System.TimeSpan? Timeout { get; }
         public Carom.Bounce When(System.Func<System.Exception, bool> predicate) { }
         public Carom.Bounce WithDelay(System.TimeSpan delay) { }
+        public Carom.Bounce WithMaxDelay(System.TimeSpan maxDelay) { }
         public Carom.Bounce WithTimeout(System.TimeSpan timeout) { }
         public Carom.Bounce WithoutJitter() { }
         public static Carom.Bounce<T> For<T>(int retries = 3) { }
@@ -21,6 +23,7 @@ namespace Carom
     {
         public System.TimeSpan BaseDelay { get; }
         public bool DisableJitter { get; }
+        public System.TimeSpan MaxDelay { get; }
         public int Retries { get; }
         public System.Func<System.Exception, bool>? ShouldBounce { get; }
         public System.Func<T, bool>? ShouldRetryResult { get; }
@@ -28,6 +31,7 @@ namespace Carom
         public Carom.Bounce<T> When(System.Func<System.Exception, bool> predicate) { }
         public Carom.Bounce<T> WhenResult(System.Func<T, bool> predicate) { }
         public Carom.Bounce<T> WithDelay(System.TimeSpan delay) { }
+        public Carom.Bounce<T> WithMaxDelay(System.TimeSpan maxDelay) { }
         public Carom.Bounce<T> WithTimeout(System.TimeSpan timeout) { }
         public Carom.Bounce<T> WithoutJitter() { }
         public static Carom.Bounce<T> On<TException>(int retries = 3)

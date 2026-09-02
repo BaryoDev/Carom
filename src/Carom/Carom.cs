@@ -54,6 +54,18 @@ namespace Carom
             Func<T, bool>? shouldRetryResult,
             bool disableJitter = false)
         {
+            return ShotCore(action, retries, baseDelay, shouldBounce, shouldRetryResult, disableJitter, maxDelay: null);
+        }
+
+        private static T ShotCore<T>(
+            Func<T> action,
+            int retries,
+            TimeSpan? baseDelay,
+            Func<Exception, bool>? shouldBounce,
+            Func<T, bool>? shouldRetryResult,
+            bool disableJitter,
+            TimeSpan? maxDelay)
+        {
             if (action == null) throw new ArgumentNullException(nameof(action));
             retries = Math.Max(0, retries);
             var delay = baseDelay ?? JitterStrategy.DefaultBaseDelay;
@@ -79,7 +91,7 @@ namespace Carom
                         }
 
                         // Calculate and wait for the next delay
-                        var nextDelay = JitterStrategy.CalculateDelay(delay, previousDelay, disableJitter, attempt + 1);
+                        var nextDelay = JitterStrategy.CalculateDelay(delay, previousDelay, disableJitter, attempt + 1, maxDelay);
                         Thread.Sleep(nextDelay);
                         previousDelay = nextDelay;
                         continue;
@@ -105,7 +117,7 @@ namespace Carom
                     }
 
                     // Calculate and wait for the next delay
-                    var nextDelay = JitterStrategy.CalculateDelay(delay, previousDelay, disableJitter, attempt + 1);
+                    var nextDelay = JitterStrategy.CalculateDelay(delay, previousDelay, disableJitter, attempt + 1, maxDelay);
                     Thread.Sleep(nextDelay);
                     previousDelay = nextDelay;
                 }
@@ -121,6 +133,17 @@ namespace Carom
             TimeSpan? baseDelay = null,
             Func<Exception, bool>? shouldBounce = null,
             bool disableJitter = false)
+        {
+            ShotCore(action, retries, baseDelay, shouldBounce, disableJitter, maxDelay: null);
+        }
+
+        private static void ShotCore(
+            Action action,
+            int retries,
+            TimeSpan? baseDelay,
+            Func<Exception, bool>? shouldBounce,
+            bool disableJitter,
+            TimeSpan? maxDelay)
         {
             if (action == null) throw new ArgumentNullException(nameof(action));
             retries = Math.Max(0, retries);
@@ -142,7 +165,7 @@ namespace Carom
                     if (!ShouldRetryException(ex, shouldBounce)) throw;
                     if (attempt >= retries) throw;
 
-                    var nextDelay = JitterStrategy.CalculateDelay(delay, previousDelay, disableJitter, attempt + 1);
+                    var nextDelay = JitterStrategy.CalculateDelay(delay, previousDelay, disableJitter, attempt + 1, maxDelay);
                     Thread.Sleep(nextDelay);
                     previousDelay = nextDelay;
                 }
@@ -153,33 +176,60 @@ namespace Carom
 
         /// <summary>
         /// Executes an action with retry logic using a Bounce configuration.
-        /// A timeout set via <see cref="Bounce.WithTimeout"/> is ignored on this
-        /// synchronous path; use ShotAsync if the timeout must be enforced.
+        /// A timeout set via <see cref="Bounce.WithTimeout"/> cannot be enforced on this
+        /// synchronous path and is rejected with <see cref="InvalidOperationException"/>.
         /// </summary>
         /// <typeparam name="T">The return type of the action.</typeparam>
         /// <param name="action">The action to execute.</param>
         /// <param name="bounce">The retry configuration.</param>
         /// <returns>The result of the action.</returns>
-        public static T Shot<T>(Func<T> action, Bounce bounce) =>
-            Shot(action, bounce.Retries, bounce.BaseDelay, bounce.ShouldBounce, shouldRetryResult: null, bounce.DisableJitter);
+        /// <exception cref="InvalidOperationException">The bounce carries a timeout.</exception>
+        public static T Shot<T>(Func<T> action, Bounce bounce)
+        {
+            ThrowIfTimeoutOnSyncPath(bounce.Timeout);
+            return ShotCore(action, bounce.Retries, bounce.BaseDelay, bounce.ShouldBounce, shouldRetryResult: null, bounce.DisableJitter, bounce.MaxDelay);
+        }
 
         /// <summary>
         /// Executes an action with retry logic using a typed Bounce configuration with result-based retry.
+        /// A timeout set via <see cref="Bounce{T}.WithTimeout"/> cannot be enforced on this
+        /// synchronous path and is rejected with <see cref="InvalidOperationException"/>.
         /// </summary>
         /// <typeparam name="T">The return type of the action.</typeparam>
         /// <param name="action">The action to execute.</param>
         /// <param name="bounce">The retry configuration with result predicate.</param>
         /// <returns>The result of the action.</returns>
-        public static T Shot<T>(Func<T> action, Bounce<T> bounce) =>
-            Shot(action, bounce.Retries, bounce.BaseDelay, bounce.ShouldBounce, bounce.ShouldRetryResult, bounce.DisableJitter);
+        /// <exception cref="InvalidOperationException">The bounce carries a timeout.</exception>
+        public static T Shot<T>(Func<T> action, Bounce<T> bounce)
+        {
+            ThrowIfTimeoutOnSyncPath(bounce.Timeout);
+            return ShotCore(action, bounce.Retries, bounce.BaseDelay, bounce.ShouldBounce, bounce.ShouldRetryResult, bounce.DisableJitter, bounce.MaxDelay);
+        }
 
         /// <summary>
         /// Executes a void action with retry logic using a Bounce configuration.
+        /// A timeout set via <see cref="Bounce.WithTimeout"/> cannot be enforced on this
+        /// synchronous path and is rejected with <see cref="InvalidOperationException"/>.
         /// </summary>
         /// <param name="action">The action to execute.</param>
         /// <param name="bounce">The retry configuration.</param>
-        public static void Shot(Action action, Bounce bounce) =>
-            Shot(action, bounce.Retries, bounce.BaseDelay, bounce.ShouldBounce, bounce.DisableJitter);
+        /// <exception cref="InvalidOperationException">The bounce carries a timeout.</exception>
+        public static void Shot(Action action, Bounce bounce)
+        {
+            ThrowIfTimeoutOnSyncPath(bounce.Timeout);
+            ShotCore(action, bounce.Retries, bounce.BaseDelay, bounce.ShouldBounce, bounce.DisableJitter, bounce.MaxDelay);
+        }
+
+        /// <summary>
+        /// Rejects a Bounce timeout on the synchronous path, which cannot enforce one.
+        /// </summary>
+        private static void ThrowIfTimeoutOnSyncPath(TimeSpan? timeout)
+        {
+            if (timeout.HasValue)
+                throw new InvalidOperationException(
+                    "This Bounce carries a timeout, but the synchronous Shot overloads cannot enforce one. " +
+                    "Use ShotAsync if the timeout must be enforced, or remove WithTimeout from the Bounce.");
+        }
 
         #endregion
 
@@ -305,7 +355,8 @@ namespace Carom
             Func<Exception, bool>? shouldBounce,
             Func<T, bool>? shouldRetryResult,
             bool disableJitter,
-            CancellationToken ct)
+            CancellationToken ct,
+            TimeSpan? maxDelay = null)
         {
             if (timeout.HasValue && timeout.Value <= TimeSpan.Zero)
                 throw new ArgumentOutOfRangeException(nameof(timeout), "Timeout must be positive");
@@ -373,7 +424,7 @@ namespace Carom
                         }
 
                         // Calculate and wait for the next delay
-                        var nextDelay = JitterStrategy.CalculateDelay(delay, previousDelay, disableJitter, attempt + 1);
+                        var nextDelay = JitterStrategy.CalculateDelay(delay, previousDelay, disableJitter, attempt + 1, maxDelay);
                         await Task.Delay(nextDelay, effectiveCt).ConfigureAwait(false);
                         previousDelay = nextDelay;
                         continue;
@@ -406,7 +457,7 @@ namespace Carom
                     }
 
                     // Calculate and wait for the next delay
-                    var nextDelay = JitterStrategy.CalculateDelay(delay, previousDelay, disableJitter, attempt + 1);
+                    var nextDelay = JitterStrategy.CalculateDelay(delay, previousDelay, disableJitter, attempt + 1, maxDelay);
                     await BackoffDelayAsync(nextDelay, effectiveCt, timeout, ct).ConfigureAwait(false);
                     previousDelay = nextDelay;
                 }
@@ -475,7 +526,8 @@ namespace Carom
             TimeSpan? timeout,
             Func<Exception, bool>? shouldBounce,
             bool disableJitter,
-            CancellationToken ct)
+            CancellationToken ct,
+            TimeSpan? maxDelay = null)
         {
             if (timeout.HasValue && timeout.Value <= TimeSpan.Zero)
                 throw new ArgumentOutOfRangeException(nameof(timeout), "Timeout must be positive");
@@ -542,7 +594,7 @@ namespace Carom
                     if (!ShouldRetryException(ex, shouldBounce)) throw;
                     if (attempt >= retries) throw;
 
-                    var nextDelay = JitterStrategy.CalculateDelay(delay, previousDelay, disableJitter, attempt + 1);
+                    var nextDelay = JitterStrategy.CalculateDelay(delay, previousDelay, disableJitter, attempt + 1, maxDelay);
                     await BackoffDelayAsync(nextDelay, effectiveCt, timeout, ct).ConfigureAwait(false);
                     previousDelay = nextDelay;
                 }
@@ -608,8 +660,11 @@ namespace Carom
         /// <param name="bounce">The retry configuration.</param>
         /// <param name="ct">Cancellation token.</param>
         /// <returns>The result of the action.</returns>
-        public static Task<T> ShotAsync<T>(Func<Task<T>> action, Bounce bounce, CancellationToken ct = default) =>
-            ShotAsync(action, bounce.Retries, bounce.BaseDelay, bounce.Timeout, bounce.ShouldBounce, shouldRetryResult: null, bounce.DisableJitter, ct);
+        public static Task<T> ShotAsync<T>(Func<Task<T>> action, Bounce bounce, CancellationToken ct = default)
+        {
+            if (action == null) throw new ArgumentNullException(nameof(action));
+            return ShotAsyncCore(action, ctAction: null, bounce.Retries, bounce.BaseDelay, bounce.Timeout, bounce.ShouldBounce, shouldRetryResult: null, bounce.DisableJitter, ct, bounce.MaxDelay);
+        }
 
         /// <summary>
         /// Executes an async action with retry logic using a typed Bounce configuration with result-based retry.
@@ -619,8 +674,11 @@ namespace Carom
         /// <param name="bounce">The retry configuration with result predicate.</param>
         /// <param name="ct">Cancellation token.</param>
         /// <returns>The result of the action.</returns>
-        public static Task<T> ShotAsync<T>(Func<Task<T>> action, Bounce<T> bounce, CancellationToken ct = default) =>
-            ShotAsync(action, bounce.Retries, bounce.BaseDelay, bounce.Timeout, bounce.ShouldBounce, bounce.ShouldRetryResult, bounce.DisableJitter, ct);
+        public static Task<T> ShotAsync<T>(Func<Task<T>> action, Bounce<T> bounce, CancellationToken ct = default)
+        {
+            if (action == null) throw new ArgumentNullException(nameof(action));
+            return ShotAsyncCore(action, ctAction: null, bounce.Retries, bounce.BaseDelay, bounce.Timeout, bounce.ShouldBounce, bounce.ShouldRetryResult, bounce.DisableJitter, ct, bounce.MaxDelay);
+        }
 
         /// <summary>
         /// Executes an async void action with retry logic using a Bounce configuration.
@@ -628,8 +686,11 @@ namespace Carom
         /// <param name="action">The async action to execute.</param>
         /// <param name="bounce">The retry configuration.</param>
         /// <param name="ct">Cancellation token.</param>
-        public static Task ShotAsync(Func<Task> action, Bounce bounce, CancellationToken ct = default) =>
-            ShotAsync(action, bounce.Retries, bounce.BaseDelay, bounce.Timeout, bounce.ShouldBounce, bounce.DisableJitter, ct);
+        public static Task ShotAsync(Func<Task> action, Bounce bounce, CancellationToken ct = default)
+        {
+            if (action == null) throw new ArgumentNullException(nameof(action));
+            return ShotAsyncCore(action, ctAction: null, bounce.Retries, bounce.BaseDelay, bounce.Timeout, bounce.ShouldBounce, bounce.DisableJitter, ct, bounce.MaxDelay);
+        }
 
         /// <summary>
         /// Executes a cancellable async action with retry logic using a Bounce configuration.
@@ -640,8 +701,11 @@ namespace Carom
         /// <param name="bounce">The retry configuration.</param>
         /// <param name="ct">Cancellation token.</param>
         /// <returns>The result of the action.</returns>
-        public static Task<T> ShotAsync<T>(Func<CancellationToken, Task<T>> action, Bounce bounce, CancellationToken ct = default) =>
-            ShotAsync(action, bounce.Retries, bounce.BaseDelay, bounce.Timeout, bounce.ShouldBounce, shouldRetryResult: null, bounce.DisableJitter, ct);
+        public static Task<T> ShotAsync<T>(Func<CancellationToken, Task<T>> action, Bounce bounce, CancellationToken ct = default)
+        {
+            if (action == null) throw new ArgumentNullException(nameof(action));
+            return ShotAsyncCore(action: null, ctAction: action, bounce.Retries, bounce.BaseDelay, bounce.Timeout, bounce.ShouldBounce, shouldRetryResult: null, bounce.DisableJitter, ct, bounce.MaxDelay);
+        }
 
         /// <summary>
         /// Executes a cancellable async action with retry logic using a typed Bounce configuration with result-based retry.
@@ -652,8 +716,11 @@ namespace Carom
         /// <param name="bounce">The retry configuration with result predicate.</param>
         /// <param name="ct">Cancellation token.</param>
         /// <returns>The result of the action.</returns>
-        public static Task<T> ShotAsync<T>(Func<CancellationToken, Task<T>> action, Bounce<T> bounce, CancellationToken ct = default) =>
-            ShotAsync(action, bounce.Retries, bounce.BaseDelay, bounce.Timeout, bounce.ShouldBounce, bounce.ShouldRetryResult, bounce.DisableJitter, ct);
+        public static Task<T> ShotAsync<T>(Func<CancellationToken, Task<T>> action, Bounce<T> bounce, CancellationToken ct = default)
+        {
+            if (action == null) throw new ArgumentNullException(nameof(action));
+            return ShotAsyncCore(action: null, ctAction: action, bounce.Retries, bounce.BaseDelay, bounce.Timeout, bounce.ShouldBounce, bounce.ShouldRetryResult, bounce.DisableJitter, ct, bounce.MaxDelay);
+        }
 
         /// <summary>
         /// Executes a cancellable async void action with retry logic using a Bounce configuration.
@@ -662,8 +729,11 @@ namespace Carom
         /// <param name="action">The async action to execute. Receives the effective cancellation token.</param>
         /// <param name="bounce">The retry configuration.</param>
         /// <param name="ct">Cancellation token.</param>
-        public static Task ShotAsync(Func<CancellationToken, Task> action, Bounce bounce, CancellationToken ct = default) =>
-            ShotAsync(action, bounce.Retries, bounce.BaseDelay, bounce.Timeout, bounce.ShouldBounce, bounce.DisableJitter, ct);
+        public static Task ShotAsync(Func<CancellationToken, Task> action, Bounce bounce, CancellationToken ct = default)
+        {
+            if (action == null) throw new ArgumentNullException(nameof(action));
+            return ShotAsyncCore(action: null, ctAction: action, bounce.Retries, bounce.BaseDelay, bounce.Timeout, bounce.ShouldBounce, bounce.DisableJitter, ct, bounce.MaxDelay);
+        }
 
         #endregion
     }
