@@ -87,6 +87,14 @@ spot the tests did not reach.
 
 ### Known issues
 
+- `Carom.DependencyInjection`'s timeout strategy stops firing under thread pool
+  pressure. `TimeoutStrategy.Execute` queues the work with `Task.Run` and waits
+  on it, so when the pool is saturated a 50 ms timeout over a 200 ms operation
+  throws nothing and returns the result after the full 200 ms. Reproduced ten
+  times against an unmodified checkout by running two full suites concurrently,
+  and zero times in nine single-suite runs of the same commit. Not introduced
+  here and not fixed here. This package has never been published (#33) and
+  should not be published in this state
 - Several tests assert on wall-clock timing under concurrency and fail
   intermittently on net8.0 when the machine is loaded, proved with an
   interleaved A/B against an unmodified checkout. `CONTRIBUTING.md` already
