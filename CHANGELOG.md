@@ -85,26 +85,33 @@ spot the tests did not reach.
 - `tests/Carom.Tests/PublishedClaimsTests.cs` gates those claims, so a published
   number cannot go stale unnoticed again
 
-### Known issues
+### Fixed - Carom.DependencyInjection
 
-- `Carom.DependencyInjection`'s timeout strategy stops firing under thread pool
-  pressure. `TimeoutStrategy.Execute` queues the work with `Task.Run` and waits
-  on it, so when the pool is saturated a 50 ms timeout over a 200 ms operation
-  throws nothing and returns the result after the full 200 ms. Reproduced ten
-  times against an unmodified checkout by running two full suites concurrently,
-  and zero times in nine single-suite runs of the same commit. Not introduced
-  here and not fixed here. This package has never been published (#33) and
-  should not be published in this state
-- Several tests assert on wall-clock timing under concurrency and fail
-  intermittently on net8.0 when the machine is loaded, proved with an
-  interleaved A/B against an unmodified checkout. `CONTRIBUTING.md` already
-  asks for the injectable clock instead. Affected:
-  `MasseHedgeDelayTests.Hedging_waits_the_hedge_delay_between_unsatisfactory_results`,
-  `ExtensionsEdgeCaseTests.Compartment_HighConcurrency_HandlesCorrectly`,
-  `RealWorldUseCaseTests.RateLimiter_EnforcesApiQuota`,
-  `ResiliencePipelineTests.ResiliencePipeline_Timeout_ThrowsTimeoutException`,
-  `EdgeCaseTests.Shot_WithZeroBaseDelay_ExecutesImmediately`,
-  `SecurityTests.ShotAsync_ThreadSafe_UnderConcurrentCancellation`
+- The timeout strategy stopped firing under thread pool pressure. A 50 ms
+  timeout over a 200 ms operation would throw nothing and return the result
+  after the full 200 ms. Reproduced ten times against an unmodified checkout by
+  running two full suites concurrently, and zero times in nine single-suite runs
+  of the same commit. The strategy now takes a monotonic timestamp before the
+  work starts and throws `TimeoutException` on any completing path that overran
+  the budget, whichever way the wait behaved. `ExecuteAsync` had the same hole
+  for an action that ignores its cancellation token and got the same backstop.
+  The underlying mechanism was never identified, so this guarantees the
+  observable contract rather than explaining the cause, and the code says so.
+  It does not stop the abandoned work, only guarantees the caller is told
+
+### Fixed - tests
+
+- Nine tests asserted on wall-clock timing and failed intermittently under load.
+  Where a clock could drive the behaviour it now does, using the injectable
+  `Func<long>` seam; where the behaviour is genuinely concurrent, the timing
+  assertions were replaced with load-independent invariants such as peak
+  concurrency never exceeding the limit and every permit being returned.
+  `RateLimiter_EnforcesApiQuota` was not merely flaky but wrong: it asserted at
+  least one request was throttled, which fails a correct limiter whenever the
+  loop runs longer than a second, because refill legitimately admits all of them
+- Four upper-bound assertions on synchronous fail-fast paths are still
+  wall-clock bounded. Removing those needs an injectable delay hook on the retry
+  loop, the analogue of the existing timestamp seam
 
 ## [1.7.0] - 2026-08-28
 
