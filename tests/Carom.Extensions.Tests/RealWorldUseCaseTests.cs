@@ -262,12 +262,16 @@ namespace Carom.Extensions.Tests
             }
             stopwatch.Stop();
 
-            // Should only allow burst + some refill during test execution
-            // With 100 burst and 200 requests over ~100-500ms, expect most to be throttled
-            Assert.True(allowed <= 200,
-                $"Expected most requests to be throttled, got {allowed} allowed");
-            Assert.True(throttled >= 1,
-                $"Expected some throttling, got {throttled}");
+            Assert.Equal(200, allowed + throttled);
+            // The burst always fits: the loop is sequential and refill only adds tokens
+            Assert.True(allowed >= 100,
+                $"Expected the 100-token burst to be admitted, got {allowed}");
+            // Refill grows with how long the loop actually ran, so the bound must come
+            // from measured time. A fixed "some throttling" assertion fails a correct
+            // limiter on a loaded runner where the loop takes over a second.
+            var refillBudget = (int)Math.Ceiling(stopwatch.Elapsed.TotalSeconds * 100) + 10;
+            Assert.True(allowed <= 100 + refillBudget,
+                $"Expected at most burst + refill for {stopwatch.ElapsedMilliseconds}ms, got {allowed}");
         }
 
         [Fact]
