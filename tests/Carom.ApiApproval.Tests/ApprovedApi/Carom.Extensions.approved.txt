@@ -84,7 +84,7 @@ namespace Carom.Extensions
     public class CushionBuilder
     {
         public Carom.Extensions.Cushion HalfOpenAfter(System.TimeSpan delay) { }
-        public Carom.Extensions.CushionBuilder OpenAfter(int failures, int within) { }
+        public Carom.Extensions.CushionBuilder OpenAfter(int failures, int outOf) { }
     }
     public readonly struct Masse
     {

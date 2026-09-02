@@ -82,7 +82,7 @@ namespace Carom.Extensions
                 }
                 catch
                 {
-                    state.RecordFailureAndTryOpen(FailureThreshold, SamplingWindow);
+                    state.RecordFailureAndTryOpen(FailureThreshold);
                     throw;
                 }
             }
@@ -158,7 +158,7 @@ namespace Carom.Extensions
                 }
                 catch
                 {
-                    state.RecordFailureAndTryOpen(FailureThreshold, SamplingWindow);
+                    state.RecordFailureAndTryOpen(FailureThreshold);
                     throw;
                 }
             }
@@ -232,14 +232,17 @@ namespace Carom.Extensions
         }
 
         /// <summary>
-        /// Sets the failure threshold and sampling window.
+        /// Sets the failure threshold and sampling window, both counts of calls.
+        /// The circuit opens as soon as the last <paramref name="outOf"/> recorded
+        /// calls contain <paramref name="failures"/> failures. The window does not
+        /// need to fill first: that many consecutive failures open it immediately.
         /// </summary>
         /// <param name="failures">Number of failures to trigger circuit open.</param>
-        /// <param name="within">Size of sliding window to track.</param>
-        public CushionBuilder OpenAfter(int failures, int within)
+        /// <param name="outOf">Number of most recent calls the failures are counted over.</param>
+        public CushionBuilder OpenAfter(int failures, int outOf)
         {
             _failureThreshold = failures;
-            _samplingWindow = within;
+            _samplingWindow = outOf;
             return this;
         }
 

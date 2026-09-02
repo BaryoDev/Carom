@@ -58,9 +58,10 @@ namespace Carom.Extensions
         /// <summary>
         /// Records a failure and atomically transitions to Open if the threshold is met.
         /// Combines record + check + transition to avoid race with concurrent Close/Reset.
+        /// The window does not need to be full: the threshold trips on its own.
         /// Returns true if the circuit was opened by this call.
         /// </summary>
-        public bool RecordFailureAndTryOpen(int failureThreshold, int samplingWindow)
+        public bool RecordFailureAndTryOpen(int failureThreshold)
         {
             RecordFailure();
 
@@ -69,9 +70,8 @@ namespace Carom.Extensions
                 return false;
 
             var failures = _recentResults.CountWhere(x => !x);
-            var total = _recentResults.Count;
 
-            if (total >= samplingWindow && failures >= failureThreshold)
+            if (failures >= failureThreshold)
             {
                 // Atomically transition from Closed to Open only
                 if (Interlocked.CompareExchange(ref _state, (int)CircuitState.Open, (int)CircuitState.Closed) == (int)CircuitState.Closed)
@@ -82,18 +82,6 @@ namespace Carom.Extensions
             }
 
             return false;
-        }
-
-        /// <summary>
-        /// Determines if the circuit should open based on failure threshold.
-        /// </summary>
-        public bool ShouldOpen(int failureThreshold, int samplingWindow)
-        {
-            var failures = _recentResults.CountWhere(x => !x);
-            var total = _recentResults.Count;
-
-            // Need enough samples AND enough failures
-            return total >= samplingWindow && failures >= failureThreshold;
         }
 
         /// <summary>
