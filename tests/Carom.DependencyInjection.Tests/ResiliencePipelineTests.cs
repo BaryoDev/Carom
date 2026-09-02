@@ -128,12 +128,22 @@ namespace Carom.DependencyInjection.Tests
 
             // Not disposed on purpose, late-starting blockers still call Wait.
             var release = new ManualResetEventSlim(false);
+            var blockers = Environment.ProcessorCount * 4;
+            using var entered = new CountdownEvent(blockers);
             try
             {
-                for (int i = 0; i < Environment.ProcessorCount * 4; i++)
+                for (int i = 0; i < blockers; i++)
                 {
-                    ThreadPool.UnsafeQueueUserWorkItem(_ => release.Wait(), null);
+                    ThreadPool.UnsafeQueueUserWorkItem(_ =>
+                    {
+                        entered.Signal();
+                        release.Wait();
+                    }, null);
                 }
+
+                // Queuing is not running: wait until every blocker holds a pool
+                // thread, otherwise the loop below runs without pressure.
+                entered.Wait();
 
                 for (int i = 0; i < 20; i++)
                 {

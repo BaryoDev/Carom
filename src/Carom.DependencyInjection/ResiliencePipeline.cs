@@ -228,6 +228,12 @@ namespace Carom.DependencyInjection
             }
             catch (AggregateException ae) when (ae.InnerException != null)
             {
+                // A saturated pool can cancel the task before the action ever
+                // starts; that is still a missed deadline, so report the timeout.
+                if (task.IsCanceled)
+                {
+                    throw new TimeoutException($"Operation timed out after {_timeout.TotalMilliseconds}ms");
+                }
                 System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ae.InnerException).Throw();
                 throw; // Unreachable, satisfies compiler
             }
