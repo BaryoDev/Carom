@@ -117,6 +117,85 @@ namespace Carom.DependencyInjection.Tests
         }
 
         [Fact]
+        public void ResiliencePipeline_Timeout_UnderThreadPoolPressure_AlwaysThrows()
+        {
+            // CAR-14: under suite load the sync timeout sometimes never fired and
+            // Execute returned the overrunning action's result. Drive the same
+            // shape under deliberate pool pressure, many times.
+            var pipeline = new ResiliencePipelineBuilder("test")
+                .AddTimeout(TimeSpan.FromMilliseconds(50))
+                .Build();
+
+            // Not disposed on purpose, late-starting blockers still call Wait.
+            var release = new ManualResetEventSlim(false);
+            try
+            {
+                for (int i = 0; i < Environment.ProcessorCount * 4; i++)
+                {
+                    ThreadPool.UnsafeQueueUserWorkItem(_ => release.Wait(), null);
+                }
+
+                for (int i = 0; i < 20; i++)
+                {
+                    Assert.Throws<TimeoutException>(() =>
+                    {
+                        pipeline.Execute(() =>
+                        {
+                            Thread.Sleep(200);
+                            return "never";
+                        });
+                    });
+                }
+            }
+            finally
+            {
+                // Always unblock the pool so a failure cannot wedge the suite.
+                release.Set();
+            }
+        }
+
+        [Fact]
+        public void TimeoutStrategy_SyncOverrunDetectedByClock_ThrowsInsteadOfReturning()
+        {
+            // Sync backstop check, drives the injectable clock because the early wait path fires first through the public API.
+            // Reflection because the strategy is internal and InternalsVisibleTo would change the approved public API.
+            var type = typeof(ResiliencePipeline).Assembly
+                .GetType("Carom.DependencyInjection.TimeoutStrategy");
+            Assert.NotNull(type);
+
+            // First reading is the start, every later reading is 10s further on.
+            var calls = 0;
+            Func<long> clock = () => Interlocked.Increment(ref calls) == 1
+                ? 0L
+                : System.Diagnostics.Stopwatch.Frequency * 10;
+
+            var strategy = (IResilienceStrategy)Activator.CreateInstance(
+                type!, TimeSpan.FromMilliseconds(50), clock)!;
+
+            Assert.Throws<TimeoutException>(() => strategy.Execute(() => "never"));
+        }
+
+        [Fact]
+        public async Task ResiliencePipeline_AsyncTimeout_ActionIgnoresToken_ThrowsInsteadOfReturning()
+        {
+            // Backstop check: an action that ignores the token and overruns its
+            // budget must still surface TimeoutException, never its result.
+            var pipeline = new ResiliencePipelineBuilder("test")
+                .AddTimeout(TimeSpan.FromMilliseconds(50))
+                .Build();
+
+            await Assert.ThrowsAsync<TimeoutException>(async () =>
+            {
+                await pipeline.ExecuteAsync(async ct =>
+                {
+                    // Deliberately does not pass ct.
+                    await Task.Delay(150);
+                    return "never";
+                });
+            });
+        }
+
+        [Fact]
         public void ServiceCollection_AddCaromResilience_RegistersPipeline()
         {
             var services = new ServiceCollection();
