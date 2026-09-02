@@ -54,8 +54,7 @@ jobs:
         run: |
           set -uo pipefail
           expected="Carom Carom.AspNetCore Carom.DependencyInjection Carom.EntityFramework Carom.Extensions Carom.Http Carom.Telemetry.OpenTelemetry"
-          actual=$(find ./dist -maxdepth 1 -name '*.nupkg' ! -name '*.symbols.nupkg' -exec basename {} \; \
-                   | sed -E 's/\.[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?\.nupkg$//' | sort -u)
+          actual=$(scripts/packed-package-ids.sh ./dist)
           echo "packed:"; printf '  %s\n' $actual
 
           fail=0
@@ -98,9 +97,7 @@ jobs:
           VERSION: ${{ github.event.inputs.version }}
         run: |
           set -euo pipefail
-          packages=$(find ./dist -maxdepth 1 -name '*.nupkg' ! -name '*.symbols.nupkg' -exec basename {} \; \
-                     | sed -E 's/\.[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?\.nupkg$//' \
-                     | sort -u | sed 's/^/- /')
+          packages=$(scripts/packed-package-ids.sh ./dist | sed 's/^/- /')
           printf 'release notes will list:\n%s\n' "$packages"
           gh release create "v$VERSION" \
             --title "Release v$VERSION" \

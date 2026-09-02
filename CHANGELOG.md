@@ -7,11 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.0.0] - 2026-09-02
 
-Twelve defects found by an adversarial audit of the retry, timeout, circuit
-breaker and bulkhead paths, each reproduced against the built assemblies and run
-head to head against Polly v8, the Polly v7 API and System.Threading.RateLimiting.
-The published suite was green throughout, so every one of these sat in a blind
-spot the tests did not reach.
+An adversarial audit of the retry, timeout, circuit breaker and bulkhead paths
+found twelve defects. Fixing them turned up four more: two from writing tests for
+three packages that had none, and two from the fixes themselves. All sixteen are
+closed here.
+
+Every one was reproduced against the built assemblies and run head to head
+against Polly v8, the Polly v7 API and System.Threading.RateLimiting. The
+published suite was green throughout, so each sat in a blind spot the tests did
+not reach.
+
+The release also makes the OpenTelemetry package emit for the first time and
+makes Carom.DependencyInjection publishable, neither of which was an audit
+finding.
 
 ### Breaking - Carom
 
