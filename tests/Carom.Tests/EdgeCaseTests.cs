@@ -32,14 +32,14 @@ namespace Carom.Tests
         public async Task ShotAsync_ThrowsArgumentNullException_WhenActionIsNull()
         {
             await Assert.ThrowsAsync<ArgumentNullException>(() =>
-                Carom.ShotAsync<int>(null!, retries: 0));
+                Carom.ShotAsync<int>((Func<Task<int>>)null!, retries: 0));
         }
 
         [Fact]
         public async Task ShotAsync_VoidAction_ThrowsArgumentNullException_WhenActionIsNull()
         {
             await Assert.ThrowsAsync<ArgumentNullException>(() =>
-                Carom.ShotAsync(null!, retries: 0));
+                Carom.ShotAsync((Func<Task>)null!, retries: 0));
         }
 
         #endregion

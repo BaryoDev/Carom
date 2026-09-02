@@ -37,6 +37,10 @@ namespace Carom
             bool disableJitter,
             int attempt)
         {
+            // Clamp negatives so a bad baseDelay never reaches Thread.Sleep or Task.Delay.
+            if (baseDelay < TimeSpan.Zero) baseDelay = TimeSpan.Zero;
+            if (previousDelay < TimeSpan.Zero) previousDelay = TimeSpan.Zero;
+
             if (disableJitter)
             {
                 // Fixed exponential backoff: base * 2^attempt, capped
