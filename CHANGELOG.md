@@ -49,6 +49,16 @@ spot the tests did not reach.
   `SamplingDuration`. It used to compare `SamplingWindow` alone, so a lenient
   call site silently repurposed a circuit a strict one had registered
 
+### Added - packaging
+
+- All seven packages ship a NuGet icon. Every one showed the grey placeholder in
+  the gallery before (#37). The mark is a white cue ball and a gold bounced path
+  on billiards green, generated from `assets/icon-spec.json` and checked against
+  the house style; `assets/logo.svg` is the source, `assets/logo.png` the 128px
+  render that packs. Verified by packing the core and inspecting the nupkg: the
+  icon element is present, the PNG is 128x128, and the dependency group is still
+  empty so the zero-dependency gate is unaffected
+
 ### Added - Carom
 
 - `ShotAsync` overloads taking `Func<CancellationToken, Task<T>>` and

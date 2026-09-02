@@ -8,7 +8,7 @@
 
     <!-- Package Metadata -->
     <PackageId>Carom.Telemetry.OpenTelemetry</PackageId>
-    <Version>1.7.0</Version>
+    <Version>2.0.0</Version>
     <Authors>Baryo.Dev</Authors>
     <Company>Baryo.Dev</Company>
     <Description>OpenTelemetry integration for Carom resilience library. Provides automatic metrics, traces, and activity tracking for all Carom resilience patterns.</Description>
@@ -18,12 +18,14 @@
     <PackageProjectUrl>https://github.com/BaryoDev/Carom</PackageProjectUrl>
     <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>logo.png</PackageIcon>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <Copyright>Copyright © 2025 Baryo.Dev</Copyright>
   </PropertyGroup>
 
   <ItemGroup>
     <None Include="../../README.md" Pack="true" PackagePath="\" />
+    <None Include="../../assets/logo.png" Pack="true" PackagePath="\" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="carom">
+  <rect x="2" y="2" width="124" height="124" rx="28" fill="#2FAE66"/>
+  <path d="M53.8 72.4 L93.8 42.4 L102.2 53.6 L62.2 83.6 Z" fill="#FFC53D"/>
+  <path d="M94.26 53.92 L56.26 29.92 L63.74 18.08 L101.74 42.08 Z" fill="#FFC53D"/>
+  <circle cx="40" cy="86" r="17" fill="#FFFFFF"/>
+</svg>

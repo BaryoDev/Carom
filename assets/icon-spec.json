@@ -1,0 +1,15 @@
+{
+  "size": 128,
+  "out": "icons",
+  "icons": [
+    {
+      "name": "carom",
+      "bg": "green",
+      "layers": [
+        {"fill": "gold",  "d": "M53.8 72.4 L93.8 42.4 L102.2 53.6 L62.2 83.6 Z"},
+        {"fill": "gold",  "d": "M94.26 53.92 L56.26 29.92 L63.74 18.08 L101.74 42.08 Z"},
+        {"fill": "white", "circle": [40, 86, 17]}
+      ]
+    }
+  ]
+}
