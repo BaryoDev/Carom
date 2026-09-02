@@ -11,7 +11,7 @@
     <Version>2.0.0</Version>
     <Authors>Baryo.Dev</Authors>
     <Company>Baryo.Dev</Company>
-    <Description>OpenTelemetry integration for Carom resilience library. Provides automatic metrics, traces, and activity tracking for all Carom resilience patterns.</Description>
+    <Description>OpenTelemetry instruments for the Carom resilience library. Provides meters, counters and an ActivitySource that your code calls to record retries, circuit breaker opens, bulkhead rejections and rate limit rejections. Carom does not emit these automatically yet; see the repository issues.</Description>
     <PackageTags>resilience;opentelemetry;metrics;tracing;observability;telemetry;polly-alternative;net8</PackageTags>
     <RepositoryUrl>https://github.com/BaryoDev/Carom</RepositoryUrl>
     <RepositoryType>git</RepositoryType>

@@ -124,6 +124,32 @@ spot the tests did not reach.
   observable contract rather than explaining the cause, and the code says so.
   It does not stop the abandoned work, only guarantees the caller is told
 
+### Fixed - Carom.EntityFramework
+
+- `TimeoutRejectedException` is now retried. The transient classifier decided
+  what to retry by lowercasing the message and looking for "timeout", but
+  Carom's own timeout reads "Operation timed out after Nms", which does not
+  contain that substring. So the one exception this release explicitly keeps
+  retryable was classified permanent by Carom's own EF package and never
+  retried. It is now matched by type before the message fallback, which is
+  otherwise unchanged so nothing that used to retry stopped.
+  `DbUpdateConcurrencyException` is deliberately not transient: replaying the
+  same stale original values hits the same conflict and can mask a lost update.
+  Only the parameter overload was affected; the Bounce overload never consulted
+  this classifier and was already correct
+
+### Changed - Carom.Telemetry.OpenTelemetry
+
+- The package description promised "automatic metrics, traces, and activity
+  tracking for all Carom resilience patterns". Nothing is automatic:
+  `CaromTelemetry` appears exactly once in the whole source tree, its own
+  declaration, and no core, extension, HTTP, DI, ASP.NET Core or EF path ever
+  calls its Record methods or `StartActivity`. The instruments work when called,
+  which is now tested. The description and the README row say what the package
+  actually does instead. Wiring the hooks into the core paths is filed
+  separately; it needs a seam that does not make the core depend on the
+  telemetry package, which is a larger design job than this release
+
 ### Fixed - tests
 
 - Nine tests asserted on wall-clock timing and failed intermittently under load.

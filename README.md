@@ -29,7 +29,7 @@ Sizes are the Release-built assemblies. Tests keep the core and extensions figur
 | **Carom.Http** | 13KB | HTTP integration |
 | **Carom.AspNetCore** | 9KB | ASP.NET Core health checks |
 | **Carom.EntityFramework** | 10KB | EF Core retry |
-| **Carom.Telemetry.OpenTelemetry** | 7KB | OpenTelemetry metrics |
+| **Carom.Telemetry.OpenTelemetry** | 7KB | OpenTelemetry instruments, called by your code (Carom does not emit automatically yet) |
 
 ## 🚀 Quick Start
 
