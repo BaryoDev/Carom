@@ -552,13 +552,14 @@ namespace Carom
         }
 
         /// <summary>
-        /// Decides whether a caught exception is retried. An OperationCanceledException
-        /// means the operation reported itself cancelled and is never retried; the
-        /// shouldBounce predicate can only narrow what is retried, never widen it.
+        /// Decides whether a caught exception is retried. Genuine cancellation is never
+        /// retried and the shouldBounce predicate can only narrow, never widen. A timeout
+        /// is a failure worth retrying, and TimeoutRejectedException derives from
+        /// OperationCanceledException, so it is let through explicitly.
         /// </summary>
         private static bool ShouldRetryException(Exception ex, Func<Exception, bool>? shouldBounce)
         {
-            if (ex is OperationCanceledException) return false;
+            if (ex is OperationCanceledException && !(ex is TimeoutRejectedException)) return false;
             return shouldBounce == null || shouldBounce(ex);
         }
 

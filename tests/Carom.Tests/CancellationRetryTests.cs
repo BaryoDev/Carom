@@ -160,11 +160,10 @@ namespace Carom.Tests
         }
 
         [Fact]
-        public async Task ShotAsync_InnerTimeout_IsNotRetriedByOuterShot()
+        public async Task ShotAsync_InnerTimeout_IsRetriedByOuterShot()
         {
-            // TimeoutRejectedException derives from OperationCanceledException, so an
-            // inner Carom timeout must stop an outer Carom retry loop on attempt one,
-            // even when the outer predicate would retry everything.
+            // A timeout is retryable, unlike genuine cancellation: an inner per-attempt
+            // timeout wrapped in an outer retry is the standard resilience composition.
             var outerAttempts = 0;
 
             await Assert.ThrowsAsync<TimeoutRejectedException>(() =>
@@ -182,10 +181,31 @@ namespace Carom.Tests
                             timeout: TimeSpan.FromMilliseconds(50));
                     },
                     retries: 3,
-                    baseDelay: TimeSpan.FromMilliseconds(1),
-                    shouldBounce: _ => true));
+                    baseDelay: TimeSpan.FromMilliseconds(1)));
 
-            Assert.Equal(1, outerAttempts);
+            Assert.Equal(4, outerAttempts);
+        }
+
+        [Fact]
+        public async Task ShotAsync_OwnTimeout_EndsTheCall_DoesNotRetryItself()
+        {
+            // The shot's own timeout is translated before the retry decision
+            // and must end the call, not feed its own retry loop.
+            var attempts = 0;
+
+            await Assert.ThrowsAsync<TimeoutRejectedException>(() =>
+                Carom.ShotAsync<int>(
+                    async token =>
+                    {
+                        attempts++;
+                        await Task.Delay(TimeSpan.FromSeconds(30), token);
+                        return 1;
+                    },
+                    retries: 5,
+                    baseDelay: TimeSpan.FromMilliseconds(1),
+                    timeout: TimeSpan.FromMilliseconds(100)));
+
+            Assert.Equal(1, attempts);
         }
 
         [Fact]
