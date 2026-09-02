@@ -62,11 +62,11 @@ namespace Carom.Tests
         }
 
         [Fact]
-        public void Bounce_HandlesZeroTimeout()
+        public void Bounce_RejectsZeroTimeout()
         {
-            // Should accept zero timeout (immediate cancellation)
-            var bounce = Bounce.Times(3).WithTimeout(TimeSpan.Zero);
-            Assert.Equal(TimeSpan.Zero, bounce.Timeout);
+            // A zero timeout was only enforced when it won a race; it is rejected now
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                Bounce.Times(3).WithTimeout(TimeSpan.Zero));
         }
 
         #endregion

@@ -104,10 +104,14 @@ namespace Carom
         /// The timeout is honored only by the asynchronous ShotAsync overloads.
         /// The synchronous Shot overloads have no cancellation mechanism and ignore it.
         /// </summary>
-        /// <param name="timeout">The timeout duration.</param>
+        /// <param name="timeout">The timeout duration. Must be positive.</param>
         /// <returns>A new Bounce configuration with the specified timeout.</returns>
-        public Bounce WithTimeout(TimeSpan timeout) =>
-            new Bounce(Retries, BaseDelay, timeout, DisableJitter, ShouldBounce);
+        public Bounce WithTimeout(TimeSpan timeout)
+        {
+            if (timeout <= TimeSpan.Zero)
+                throw new ArgumentOutOfRangeException(nameof(timeout), "Timeout must be positive");
+            return new Bounce(Retries, BaseDelay, timeout, DisableJitter, ShouldBounce);
+        }
     }
 
     /// <summary>
@@ -219,9 +223,13 @@ namespace Carom
         /// The timeout is honored only by the asynchronous ShotAsync overloads.
         /// The synchronous Shot overloads have no cancellation mechanism and ignore it.
         /// </summary>
-        /// <param name="timeout">The timeout duration.</param>
+        /// <param name="timeout">The timeout duration. Must be positive.</param>
         /// <returns>A new Bounce configuration with the specified timeout.</returns>
-        public Bounce<T> WithTimeout(TimeSpan timeout) =>
-            new Bounce<T>(Retries, BaseDelay, timeout, DisableJitter, ShouldBounce, ShouldRetryResult);
+        public Bounce<T> WithTimeout(TimeSpan timeout)
+        {
+            if (timeout <= TimeSpan.Zero)
+                throw new ArgumentOutOfRangeException(nameof(timeout), "Timeout must be positive");
+            return new Bounce<T>(Retries, BaseDelay, timeout, DisableJitter, ShouldBounce, ShouldRetryResult);
+        }
     }
 }

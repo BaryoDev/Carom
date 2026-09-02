@@ -231,6 +231,8 @@ namespace Carom
             CancellationToken ct = default)
         {
             if (action == null) throw new ArgumentNullException(nameof(action));
+            if (timeout.HasValue && timeout.Value <= TimeSpan.Zero)
+                throw new ArgumentOutOfRangeException(nameof(timeout), "Timeout must be positive");
             retries = Math.Max(0, retries);
 
             // Create linked token source if timeout specified OR if we have a real cancellation token
@@ -347,6 +349,8 @@ namespace Carom
             CancellationToken ct = default)
         {
             if (action == null) throw new ArgumentNullException(nameof(action));
+            if (timeout.HasValue && timeout.Value <= TimeSpan.Zero)
+                throw new ArgumentOutOfRangeException(nameof(timeout), "Timeout must be positive");
             retries = Math.Max(0, retries);
 
             // Create linked token source if timeout specified OR if we have a real cancellation token
