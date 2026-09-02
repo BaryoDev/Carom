@@ -31,22 +31,24 @@ namespace Carom.Extensions
             // Try to get existing entry first
             if (States.TryGetValue(serviceKey, out var existingEntry))
             {
-                // ShouldTrip is a delegate and cannot be value-compared, so it must
-                // stay excluded from this conflict check even when it is hardened.
-                if (existingEntry.SamplingWindow != config.SamplingWindow)
-                    throw new InvalidOperationException(
-                        $"Service '{serviceKey}' already registered with SamplingWindow={existingEntry.SamplingWindow}, " +
-                        $"but requested SamplingWindow={config.SamplingWindow}. Configuration changes for existing keys are not supported.");
+                ThrowIfConflicting(serviceKey, existingEntry, config);
                 existingEntry.Touch();
                 return existingEntry.State;
             }
 
             // Create new entry
             var newState = new CushionState(config.SamplingWindow, config.Timestamp, config.SamplingDuration);
-            var newEntry = new CushionStateEntry(newState, config.SamplingWindow);
+            var newEntry = new CushionStateEntry(newState, config);
 
             // Try to add, handling race condition
             var entry = States.GetOrAdd(serviceKey, newEntry);
+
+            // A lost GetOrAdd race hands back someone else's entry, so the loser must be
+            // validated too or a conflicting registration passes silently under load.
+            if (!ReferenceEquals(entry, newEntry))
+            {
+                ThrowIfConflicting(serviceKey, entry, config);
+            }
 
             // Check if we need to evict
             if (States.Count > MaxSize)
@@ -56,6 +58,21 @@ namespace Carom.Extensions
 
             entry.Touch();
             return entry.State;
+        }
+
+        /// <summary>
+        /// Rejects a registration that disagrees with the entry already holding the key.
+        /// Called from both the sequential and the lost-race path so the rule cannot drift.
+        /// </summary>
+        private static void ThrowIfConflicting(string serviceKey, CushionStateEntry entry, Cushion config)
+        {
+            // ShouldTrip is a delegate and cannot be value-compared, and Timestamp is an
+            // internal test seam, so both stay excluded from this conflict check.
+            StoreConflictHelper.ThrowIfConflicting("Service", serviceKey,
+                new ConfigField("FailureThreshold", entry.FailureThreshold, config.FailureThreshold),
+                new ConfigField("SamplingWindow", entry.SamplingWindow, config.SamplingWindow),
+                new ConfigField("HalfOpenDelay", entry.HalfOpenDelay, config.HalfOpenDelay),
+                new ConfigField("SamplingDuration", entry.SamplingDuration, config.SamplingDuration));
         }
 
         /// <summary>
@@ -153,13 +170,19 @@ namespace Carom.Extensions
         private class CushionStateEntry
         {
             public CushionState State { get; }
+            public int FailureThreshold { get; }
             public int SamplingWindow { get; }
+            public TimeSpan HalfOpenDelay { get; }
+            public TimeSpan SamplingDuration { get; }
             public long LastAccessTicks;
 
-            public CushionStateEntry(CushionState state, int samplingWindow)
+            public CushionStateEntry(CushionState state, Cushion config)
             {
                 State = state;
-                SamplingWindow = samplingWindow;
+                FailureThreshold = config.FailureThreshold;
+                SamplingWindow = config.SamplingWindow;
+                HalfOpenDelay = config.HalfOpenDelay;
+                SamplingDuration = config.SamplingDuration;
                 LastAccessTicks = DateTime.UtcNow.Ticks;
             }
 
