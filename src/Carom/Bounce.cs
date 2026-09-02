@@ -44,13 +44,23 @@ namespace Carom
         /// </summary>
         public TimeSpan? Timeout { get; }
 
-        private Bounce(int retries, TimeSpan baseDelay, TimeSpan? timeout, bool disableJitter, Func<Exception, bool>? shouldBounce)
+        /// <summary>
+        /// Ceiling for any computed retry delay, jittered or fixed. Defaults to 30 seconds.
+        /// A base delay above this ceiling is clamped to it.
+        /// </summary>
+        public TimeSpan MaxDelay => _maxDelay ?? JitterStrategy.DefaultMaxDelay;
+
+        // Nullable backing so default(Bounce) still reports the 30 second default.
+        private readonly TimeSpan? _maxDelay;
+
+        private Bounce(int retries, TimeSpan baseDelay, TimeSpan? timeout, bool disableJitter, Func<Exception, bool>? shouldBounce, TimeSpan? maxDelay = null)
         {
             Retries = retries;
             BaseDelay = baseDelay;
             Timeout = timeout;
             DisableJitter = disableJitter;
             ShouldBounce = shouldBounce;
+            _maxDelay = maxDelay;
         }
 
         /// <summary>
@@ -80,7 +90,7 @@ namespace Carom
         {
             if (delay < TimeSpan.Zero)
                 throw new ArgumentOutOfRangeException(nameof(delay), "Delay cannot be negative");
-            return new Bounce(Retries, delay, Timeout, DisableJitter, ShouldBounce);
+            return new Bounce(Retries, delay, Timeout, DisableJitter, ShouldBounce, _maxDelay);
         }
 
         /// <summary>
@@ -89,7 +99,7 @@ namespace Carom
         /// </summary>
         /// <returns>A new Bounce configuration with jitter disabled.</returns>
         public Bounce WithoutJitter() =>
-            new Bounce(Retries, BaseDelay, Timeout, disableJitter: true, ShouldBounce);
+            new Bounce(Retries, BaseDelay, Timeout, disableJitter: true, ShouldBounce, _maxDelay);
 
         /// <summary>
         /// Sets a predicate to determine which exceptions should trigger a retry.
@@ -97,7 +107,22 @@ namespace Carom
         /// <param name="predicate">The exception predicate.</param>
         /// <returns>A new Bounce configuration with the specified predicate.</returns>
         public Bounce When(Func<Exception, bool> predicate) =>
-            new Bounce(Retries, BaseDelay, Timeout, DisableJitter, predicate);
+            new Bounce(Retries, BaseDelay, Timeout, DisableJitter, predicate, _maxDelay);
+
+        /// <summary>
+        /// Sets the maximum delay between retries.
+        /// Caps every computed backoff, jittered or fixed. Defaults to 30 seconds.
+        /// A base delay above this ceiling is clamped down to it, not rejected,
+        /// matching how the fixed 30 second cap has always behaved.
+        /// </summary>
+        /// <param name="maxDelay">The delay ceiling. Must be positive.</param>
+        /// <returns>A new Bounce configuration with the specified maximum delay.</returns>
+        public Bounce WithMaxDelay(TimeSpan maxDelay)
+        {
+            if (maxDelay <= TimeSpan.Zero)
+                throw new ArgumentOutOfRangeException(nameof(maxDelay), "Max delay must be positive");
+            return new Bounce(Retries, BaseDelay, Timeout, DisableJitter, ShouldBounce, maxDelay);
+        }
 
         /// <summary>
         /// Sets the timeout for the operation.
@@ -110,7 +135,7 @@ namespace Carom
         {
             if (timeout <= TimeSpan.Zero)
                 throw new ArgumentOutOfRangeException(nameof(timeout), "Timeout must be positive");
-            return new Bounce(Retries, BaseDelay, timeout, DisableJitter, ShouldBounce);
+            return new Bounce(Retries, BaseDelay, timeout, DisableJitter, ShouldBounce, _maxDelay);
         }
     }
 
@@ -152,8 +177,17 @@ namespace Carom
         /// </summary>
         public TimeSpan? Timeout { get; }
 
+        /// <summary>
+        /// Ceiling for any computed retry delay, jittered or fixed. Defaults to 30 seconds.
+        /// A base delay above this ceiling is clamped to it.
+        /// </summary>
+        public TimeSpan MaxDelay => _maxDelay ?? JitterStrategy.DefaultMaxDelay;
+
+        // Nullable backing so default(Bounce<T>) still reports the 30 second default.
+        private readonly TimeSpan? _maxDelay;
+
         private Bounce(int retries, TimeSpan baseDelay, TimeSpan? timeout, bool disableJitter,
-            Func<Exception, bool>? shouldBounce, Func<T, bool>? shouldRetryResult)
+            Func<Exception, bool>? shouldBounce, Func<T, bool>? shouldRetryResult, TimeSpan? maxDelay = null)
         {
             Retries = retries;
             BaseDelay = baseDelay;
@@ -161,6 +195,7 @@ namespace Carom
             DisableJitter = disableJitter;
             ShouldBounce = shouldBounce;
             ShouldRetryResult = shouldRetryResult;
+            _maxDelay = maxDelay;
         }
 
         /// <summary>
@@ -191,7 +226,7 @@ namespace Carom
         {
             if (delay < TimeSpan.Zero)
                 throw new ArgumentOutOfRangeException(nameof(delay), "Delay cannot be negative");
-            return new Bounce<T>(Retries, delay, Timeout, DisableJitter, ShouldBounce, ShouldRetryResult);
+            return new Bounce<T>(Retries, delay, Timeout, DisableJitter, ShouldBounce, ShouldRetryResult, _maxDelay);
         }
 
         /// <summary>
@@ -200,7 +235,7 @@ namespace Carom
         /// </summary>
         /// <returns>A new Bounce configuration with jitter disabled.</returns>
         public Bounce<T> WithoutJitter() =>
-            new Bounce<T>(Retries, BaseDelay, Timeout, disableJitter: true, ShouldBounce, ShouldRetryResult);
+            new Bounce<T>(Retries, BaseDelay, Timeout, disableJitter: true, ShouldBounce, ShouldRetryResult, _maxDelay);
 
         /// <summary>
         /// Sets a predicate to determine which exceptions should trigger a retry.
@@ -208,7 +243,7 @@ namespace Carom
         /// <param name="predicate">The exception predicate.</param>
         /// <returns>A new Bounce configuration with the specified predicate.</returns>
         public Bounce<T> When(Func<Exception, bool> predicate) =>
-            new Bounce<T>(Retries, BaseDelay, Timeout, DisableJitter, predicate, ShouldRetryResult);
+            new Bounce<T>(Retries, BaseDelay, Timeout, DisableJitter, predicate, ShouldRetryResult, _maxDelay);
 
         /// <summary>
         /// Sets a predicate to determine which results should trigger a retry.
@@ -216,7 +251,22 @@ namespace Carom
         /// <param name="predicate">The result predicate (returns true to retry).</param>
         /// <returns>A new Bounce configuration with the specified result predicate.</returns>
         public Bounce<T> WhenResult(Func<T, bool> predicate) =>
-            new Bounce<T>(Retries, BaseDelay, Timeout, DisableJitter, ShouldBounce, predicate);
+            new Bounce<T>(Retries, BaseDelay, Timeout, DisableJitter, ShouldBounce, predicate, _maxDelay);
+
+        /// <summary>
+        /// Sets the maximum delay between retries.
+        /// Caps every computed backoff, jittered or fixed. Defaults to 30 seconds.
+        /// A base delay above this ceiling is clamped down to it, not rejected,
+        /// matching how the fixed 30 second cap has always behaved.
+        /// </summary>
+        /// <param name="maxDelay">The delay ceiling. Must be positive.</param>
+        /// <returns>A new Bounce configuration with the specified maximum delay.</returns>
+        public Bounce<T> WithMaxDelay(TimeSpan maxDelay)
+        {
+            if (maxDelay <= TimeSpan.Zero)
+                throw new ArgumentOutOfRangeException(nameof(maxDelay), "Max delay must be positive");
+            return new Bounce<T>(Retries, BaseDelay, Timeout, DisableJitter, ShouldBounce, ShouldRetryResult, maxDelay);
+        }
 
         /// <summary>
         /// Sets the timeout for the operation.
@@ -229,7 +279,7 @@ namespace Carom
         {
             if (timeout <= TimeSpan.Zero)
                 throw new ArgumentOutOfRangeException(nameof(timeout), "Timeout must be positive");
-            return new Bounce<T>(Retries, BaseDelay, timeout, DisableJitter, ShouldBounce, ShouldRetryResult);
+            return new Bounce<T>(Retries, BaseDelay, timeout, DisableJitter, ShouldBounce, ShouldRetryResult, _maxDelay);
         }
     }
 }
