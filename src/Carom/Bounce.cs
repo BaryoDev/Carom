@@ -126,8 +126,9 @@ namespace Carom
 
         /// <summary>
         /// Sets the timeout for the operation.
-        /// The timeout is honored only by the asynchronous ShotAsync overloads.
-        /// The synchronous Shot overloads have no cancellation mechanism and ignore it.
+        /// The timeout is enforced only by the asynchronous ShotAsync overloads.
+        /// Passing a Bounce with a timeout to a synchronous Shot overload throws
+        /// InvalidOperationException, because the sync path cannot enforce it.
         /// </summary>
         /// <param name="timeout">The timeout duration. Must be positive.</param>
         /// <returns>A new Bounce configuration with the specified timeout.</returns>
@@ -270,8 +271,9 @@ namespace Carom
 
         /// <summary>
         /// Sets the timeout for the operation.
-        /// The timeout is honored only by the asynchronous ShotAsync overloads.
-        /// The synchronous Shot overloads have no cancellation mechanism and ignore it.
+        /// The timeout is enforced only by the asynchronous ShotAsync overloads.
+        /// Passing a Bounce with a timeout to a synchronous Shot overload throws
+        /// InvalidOperationException, because the sync path cannot enforce it.
         /// </summary>
         /// <param name="timeout">The timeout duration. Must be positive.</param>
         /// <returns>A new Bounce configuration with the specified timeout.</returns>

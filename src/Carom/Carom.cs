@@ -176,33 +176,60 @@ namespace Carom
 
         /// <summary>
         /// Executes an action with retry logic using a Bounce configuration.
-        /// A timeout set via <see cref="Bounce.WithTimeout"/> is ignored on this
-        /// synchronous path; use ShotAsync if the timeout must be enforced.
+        /// A timeout set via <see cref="Bounce.WithTimeout"/> cannot be enforced on this
+        /// synchronous path and is rejected with <see cref="InvalidOperationException"/>.
         /// </summary>
         /// <typeparam name="T">The return type of the action.</typeparam>
         /// <param name="action">The action to execute.</param>
         /// <param name="bounce">The retry configuration.</param>
         /// <returns>The result of the action.</returns>
-        public static T Shot<T>(Func<T> action, Bounce bounce) =>
-            ShotCore(action, bounce.Retries, bounce.BaseDelay, bounce.ShouldBounce, shouldRetryResult: null, bounce.DisableJitter, bounce.MaxDelay);
+        /// <exception cref="InvalidOperationException">The bounce carries a timeout.</exception>
+        public static T Shot<T>(Func<T> action, Bounce bounce)
+        {
+            ThrowIfTimeoutOnSyncPath(bounce.Timeout);
+            return ShotCore(action, bounce.Retries, bounce.BaseDelay, bounce.ShouldBounce, shouldRetryResult: null, bounce.DisableJitter, bounce.MaxDelay);
+        }
 
         /// <summary>
         /// Executes an action with retry logic using a typed Bounce configuration with result-based retry.
+        /// A timeout set via <see cref="Bounce{T}.WithTimeout"/> cannot be enforced on this
+        /// synchronous path and is rejected with <see cref="InvalidOperationException"/>.
         /// </summary>
         /// <typeparam name="T">The return type of the action.</typeparam>
         /// <param name="action">The action to execute.</param>
         /// <param name="bounce">The retry configuration with result predicate.</param>
         /// <returns>The result of the action.</returns>
-        public static T Shot<T>(Func<T> action, Bounce<T> bounce) =>
-            ShotCore(action, bounce.Retries, bounce.BaseDelay, bounce.ShouldBounce, bounce.ShouldRetryResult, bounce.DisableJitter, bounce.MaxDelay);
+        /// <exception cref="InvalidOperationException">The bounce carries a timeout.</exception>
+        public static T Shot<T>(Func<T> action, Bounce<T> bounce)
+        {
+            ThrowIfTimeoutOnSyncPath(bounce.Timeout);
+            return ShotCore(action, bounce.Retries, bounce.BaseDelay, bounce.ShouldBounce, bounce.ShouldRetryResult, bounce.DisableJitter, bounce.MaxDelay);
+        }
 
         /// <summary>
         /// Executes a void action with retry logic using a Bounce configuration.
+        /// A timeout set via <see cref="Bounce.WithTimeout"/> cannot be enforced on this
+        /// synchronous path and is rejected with <see cref="InvalidOperationException"/>.
         /// </summary>
         /// <param name="action">The action to execute.</param>
         /// <param name="bounce">The retry configuration.</param>
-        public static void Shot(Action action, Bounce bounce) =>
+        /// <exception cref="InvalidOperationException">The bounce carries a timeout.</exception>
+        public static void Shot(Action action, Bounce bounce)
+        {
+            ThrowIfTimeoutOnSyncPath(bounce.Timeout);
             ShotCore(action, bounce.Retries, bounce.BaseDelay, bounce.ShouldBounce, bounce.DisableJitter, bounce.MaxDelay);
+        }
+
+        /// <summary>
+        /// Rejects a Bounce timeout on the synchronous path, which cannot enforce one.
+        /// </summary>
+        private static void ThrowIfTimeoutOnSyncPath(TimeSpan? timeout)
+        {
+            if (timeout.HasValue)
+                throw new InvalidOperationException(
+                    "This Bounce carries a timeout, but the synchronous Shot overloads cannot enforce one. " +
+                    "Use ShotAsync if the timeout must be enforced, or remove WithTimeout from the Bounce.");
+        }
 
         #endregion
 
