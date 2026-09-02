@@ -88,24 +88,25 @@ jobs:
           git tag -a "v${{ github.event.inputs.version }}" -m "Release v${{ github.event.inputs.version }}"
           git push origin "v${{ github.event.inputs.version }}"
 
+      # Lists what was actually packed. The previous list was written by hand, named six
+      # packages and omitted Carom.DependencyInjection, which is the same drift that kept
+      # that package unpublished (#33). One derived list, not two hand-kept ones.
       - name: Create GitHub Release
         if: ${{ github.event.inputs.create_tag == 'true' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ github.event.inputs.version }}
         run: |
-          gh release create "v${{ github.event.inputs.version }}" \
-            --title "Release v${{ github.event.inputs.version }}" \
-            --notes "$(cat <<'EOF'
-          ## Carom v${{ github.event.inputs.version }}
+          set -euo pipefail
+          packages=$(find ./dist -maxdepth 1 -name '*.nupkg' ! -name '*.symbols.nupkg' -exec basename {} \; \
+                     | sed -E 's/\.[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?\.nupkg$//' \
+                     | sort -u | sed 's/^/- /')
+          printf 'release notes will list:\n%s\n' "$packages"
+          gh release create "v$VERSION" \
+            --title "Release v$VERSION" \
+            --notes "## Carom v$VERSION
 
           Published packages:
-          - Carom
-          - Carom.Extensions
-          - Carom.Http
-          - Carom.AspNetCore
-          - Carom.EntityFramework
-          - Carom.Telemetry.OpenTelemetry
+          $packages
 
-          See [CHANGELOG.md](https://github.com/BaryoDev/Carom/blob/master/CHANGELOG.md) for details.
-          EOF
-          )"
+          See [CHANGELOG.md](https://github.com/BaryoDev/Carom/blob/master/CHANGELOG.md) for details."
