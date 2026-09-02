@@ -12,7 +12,7 @@
     - Meta-Programming: Use Expression Trees, not Reflection.
 
 - Skill: `baryo-testing`
-  - Style: **Verdict** (Fluent Assertions).
+  - Style: **plain xUnit `Assert`**. No assertion libraries (see CONTRIBUTING.md).
   - Benchmarks: Required for all perf-critical changes (BenchmarkDotNet).
 
 - Skill: `baryo-compliance`
