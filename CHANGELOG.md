@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - Unreleased
+
+### Added - Carom
+
+- `CaromHooks` gives the library four signals a consumer can subscribe to: retry,
+  circuit opened, bulkhead rejected, rate limit rejected. Each carries a
+  `readonly struct` payload so a later field is additive and nothing boxes. The
+  delegate is read into a local and null-checked before anything is computed, so
+  an unsubscribed hot path costs nothing: gated at 0 bytes over 10,000 retrying
+  calls, alongside the existing 0 bytes over 10,000 successful ones
+
+### Added - Carom.Telemetry.OpenTelemetry
+
+- `CaromTelemetry.Subscribe()` and `Unsubscribe()` wire the meters to those
+  hooks. Until now the package emitted nothing at all: `CaromTelemetry` appeared
+  exactly once in the source tree, its own declaration, while its instruments sat
+  unreferenced (#39). Subscribing twice records once. Instrument and meter names
+  are unchanged.
+- The core keeps zero package dependencies. The seam lives in `Carom` and the
+  telemetry package subscribes to it, rather than the core calling the package,
+  because the dependency only points one way. `DiagnosticSource` would have been
+  the conventional answer and is a NuGet reference, which the core does not take
+
+### Fixed - packaging
+
+- `publish.yml` packed six projects by name and omitted
+  `Carom.DependencyInjection`, so it was built, tested and never shipped while CI
+  asserted a seven-package set. It packs the solution now and repeats CI's
+  package-set assertion on the path that actually publishes (#33)
+
 ## [2.0.0] - Unreleased
 
 Twelve defects found by an adversarial audit of the retry, timeout, circuit
