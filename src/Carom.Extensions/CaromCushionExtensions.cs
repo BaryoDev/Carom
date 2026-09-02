@@ -45,13 +45,9 @@ namespace Carom.Extensions
         /// </summary>
         public static T Shot<T>(Func<T> action, Cushion cushion, Bounce bounce)
         {
-            return cushion.Execute(() => global::Carom.Carom.Shot(
-                action,
-                bounce.Retries,
-                bounce.BaseDelay,
-                bounce.ShouldBounce ?? DefaultShouldBounce,
-                shouldRetryResult: null,
-                bounce.DisableJitter));
+            // Pass the whole Bounce so every field, present and future, reaches core.
+            var effective = bounce.ShouldBounce == null ? bounce.When(DefaultShouldBounce) : bounce;
+            return cushion.Execute(() => global::Carom.Carom.Shot(action, effective));
         }
 
         /// <summary>
@@ -87,15 +83,9 @@ namespace Carom.Extensions
             Bounce bounce,
             CancellationToken ct = default)
         {
-            return cushion.ExecuteAsync(() => global::Carom.Carom.ShotAsync(
-                action,
-                bounce.Retries,
-                bounce.BaseDelay,
-                bounce.Timeout,
-                bounce.ShouldBounce ?? DefaultShouldBounce,
-                shouldRetryResult: null,
-                bounce.DisableJitter,
-                ct));
+            // Pass the whole Bounce so every field, present and future, reaches core.
+            var effective = bounce.ShouldBounce == null ? bounce.When(DefaultShouldBounce) : bounce;
+            return cushion.ExecuteAsync(() => global::Carom.Carom.ShotAsync(action, effective, ct));
         }
     }
 }
