@@ -29,6 +29,14 @@ spot the tests did not reach.
 - `TimeoutRejectedException` is exempt from that rule and stays retryable, so an
   outer retry around an inner timeout still works. A Shot's own timeout still
   ends that call rather than feeding its own loop
+- Passing a `Bounce` that carries a `Timeout` to a synchronous `Shot` overload
+  now throws `InvalidOperationException` naming the fix, instead of silently
+  dropping the timeout. The sync path has no cancellation mechanism and never
+  applied it. Rejecting a nonsense timeout at configuration time while quietly
+  ignoring a valid one was the inconsistency; enforcing it on the sync path was
+  considered and rejected, because that means running the work on a task and
+  waiting on it, the exact pattern that stopped firing under load in the DI
+  package (#36)
 
 ### Breaking - Carom.Extensions
 
@@ -61,6 +69,13 @@ spot the tests did not reach.
 
 ### Added - Carom
 
+- `Bounce.WithMaxDelay(TimeSpan)` and the same on `Bounce<T>` make the retry
+  delay ceiling configurable. It was a hardcoded 30 seconds in `JitterStrategy`,
+  documented nowhere, so a longer backoff was impossible and a latency-sensitive
+  path could not lower it. The default is unchanged at 30 seconds, including for
+  `default(Bounce)`. A non-positive maximum is rejected; a base delay above the
+  maximum is clamped rather than rejected, because cross-field rejection in a
+  fluent immutable builder depends on the order the methods are called (#35)
 - `ShotAsync` overloads taking `Func<CancellationToken, Task<T>>` and
   `Func<CancellationToken, Task>`. Without them a timeout could stop the caller
   waiting but never stop the work, and no caller could fix that from outside.
