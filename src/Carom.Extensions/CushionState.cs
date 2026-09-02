@@ -19,7 +19,24 @@ namespace Carom.Extensions
         private long _lastFailureTicks;
         private long _openedAtTimestamp;
         private int _hasOpened; // 0 = never opened, 1 = opened at least once
-        private readonly RingBuffer<bool> _recentResults;
+        private readonly RingBuffer<Outcome> _recentResults;
+
+        // Sampling duration in Stopwatch.Frequency units; long.MaxValue = no expiry.
+        private readonly long _samplingDurationTimestamps;
+
+        // One recorded call outcome. Wider than a machine word; a torn read in the
+        // ring buffer's seqlock path is discarded by its version check.
+        private readonly struct Outcome
+        {
+            public readonly bool Success;
+            public readonly long Timestamp;
+
+            public Outcome(bool success, long timestamp)
+            {
+                Success = success;
+                Timestamp = timestamp;
+            }
+        }
 
         // Monotonic timestamp source in Stopwatch.Frequency units. DateTime.UtcNow
         // moves backwards on NTP corrections and jumps forward on VM resume; a
@@ -29,11 +46,14 @@ namespace Carom.Extensions
 
         public CircuitState State => (CircuitState)Volatile.Read(ref _state);
 
-        public CushionState(int samplingWindow, Func<long>? timestamp = null)
+        public CushionState(int samplingWindow, Func<long>? timestamp = null, TimeSpan? samplingDuration = null)
         {
-            _recentResults = new RingBuffer<bool>(samplingWindow);
+            _recentResults = new RingBuffer<Outcome>(samplingWindow);
             _state = (int)CircuitState.Closed;
             _timestamp = timestamp ?? Stopwatch.GetTimestamp;
+            _samplingDurationTimestamps = samplingDuration.HasValue
+                ? (long)(samplingDuration.Value.TotalSeconds * Stopwatch.Frequency)
+                : long.MaxValue;
         }
 
         /// <summary>
@@ -41,7 +61,7 @@ namespace Carom.Extensions
         /// </summary>
         public void RecordSuccess()
         {
-            _recentResults.Add(true);
+            _recentResults.Add(new Outcome(true, _timestamp()));
             Interlocked.Increment(ref _successCount);
         }
 
@@ -50,9 +70,18 @@ namespace Carom.Extensions
         /// </summary>
         public void RecordFailure()
         {
-            _recentResults.Add(false);
+            _recentResults.Add(new Outcome(false, _timestamp()));
             Interlocked.Increment(ref _failureCount);
             Interlocked.Exchange(ref _lastFailureTicks, DateTime.UtcNow.Ticks);
+        }
+
+        // Counts failures no older than the sampling duration. Compared as
+        // now - timestamp to stay overflow-safe with the MaxValue sentinel.
+        private int CountFreshFailures()
+        {
+            return _recentResults.CountWhere(
+                (Now: _timestamp(), Duration: _samplingDurationTimestamps),
+                static (o, s) => !o.Success && s.Now - o.Timestamp <= s.Duration);
         }
 
         /// <summary>
@@ -69,7 +98,7 @@ namespace Carom.Extensions
             if (State != CircuitState.Closed)
                 return false;
 
-            var failures = _recentResults.CountWhere(x => !x);
+            var failures = CountFreshFailures();
 
             if (failures >= failureThreshold)
             {

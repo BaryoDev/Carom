@@ -31,6 +31,8 @@ namespace Carom.Extensions
             // Try to get existing entry first
             if (States.TryGetValue(serviceKey, out var existingEntry))
             {
+                // ShouldTrip is a delegate and cannot be value-compared, so it must
+                // stay excluded from this conflict check even when it is hardened.
                 if (existingEntry.SamplingWindow != config.SamplingWindow)
                     throw new InvalidOperationException(
                         $"Service '{serviceKey}' already registered with SamplingWindow={existingEntry.SamplingWindow}, " +
@@ -40,7 +42,7 @@ namespace Carom.Extensions
             }
 
             // Create new entry
-            var newState = new CushionState(config.SamplingWindow);
+            var newState = new CushionState(config.SamplingWindow, timestamp: null, samplingDuration: config.SamplingDuration);
             var newEntry = new CushionStateEntry(newState, config.SamplingWindow);
 
             // Try to add, handling race condition
