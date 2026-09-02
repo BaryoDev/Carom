@@ -57,6 +57,8 @@ namespace Carom.Extensions
 
             if (!state.TryEnter())
             {
+                var onRejected = CaromHooks.OnBulkheadRejected;
+                if (onRejected != null) onRejected(new BulkheadRejectedSignal(ResourceKey));
                 throw new CompartmentFullException(ResourceKey, MaxConcurrency);
             }
 
@@ -79,6 +81,8 @@ namespace Carom.Extensions
 
             if (!await state.TryEnterAsync(ct).ConfigureAwait(false))
             {
+                var onRejected = CaromHooks.OnBulkheadRejected;
+                if (onRejected != null) onRejected(new BulkheadRejectedSignal(ResourceKey));
                 throw new CompartmentFullException(ResourceKey, MaxConcurrency);
             }
 

@@ -11,6 +11,7 @@ namespace Carom.Telemetry.OpenTelemetry.Tests;
 /// the meter and its instruments are static, and a single collection keeps the recorded
 /// measurements attributable to the test that made them.
 /// </summary>
+[Collection("CaromMeter")]
 public class CaromTelemetryTests
 {
     private sealed record Measurement(string Instrument, double Value, Dictionary<string, object?> Tags);

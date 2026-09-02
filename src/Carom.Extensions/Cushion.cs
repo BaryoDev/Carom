@@ -109,8 +109,12 @@ namespace Carom.Extensions
                 catch (Exception ex)
                 {
                     // Only exceptions the predicate blames on the dependency count.
-                    if ((ShouldTrip ?? DefaultShouldTrip)(ex))
-                        state.RecordFailureAndTryOpen(FailureThreshold);
+                    if ((ShouldTrip ?? DefaultShouldTrip)(ex) && state.RecordFailureAndTryOpen(FailureThreshold))
+                    {
+                        // Raised once per closed-to-open transition, not per failure.
+                        var onOpened = CaromHooks.OnCircuitOpened;
+                        if (onOpened != null) onOpened(new CircuitOpenedSignal(ServiceKey));
+                    }
                     throw;
                 }
             }
@@ -196,8 +200,12 @@ namespace Carom.Extensions
                 catch (Exception ex)
                 {
                     // Only exceptions the predicate blames on the dependency count.
-                    if ((ShouldTrip ?? DefaultShouldTrip)(ex))
-                        state.RecordFailureAndTryOpen(FailureThreshold);
+                    if ((ShouldTrip ?? DefaultShouldTrip)(ex) && state.RecordFailureAndTryOpen(FailureThreshold))
+                    {
+                        // Raised once per closed-to-open transition, not per failure.
+                        var onOpened = CaromHooks.OnCircuitOpened;
+                        if (onOpened != null) onOpened(new CircuitOpenedSignal(ServiceKey));
+                    }
                     throw;
                 }
             }

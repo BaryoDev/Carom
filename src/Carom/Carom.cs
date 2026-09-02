@@ -92,6 +92,8 @@ namespace Carom
 
                         // Calculate and wait for the next delay
                         var nextDelay = JitterStrategy.CalculateDelay(delay, previousDelay, disableJitter, attempt + 1, maxDelay);
+                        var onResultRetry = CaromHooks.OnRetry;
+                        if (onResultRetry != null) onResultRetry(new RetrySignal(attempt + 1, nextDelay, null));
                         Thread.Sleep(nextDelay);
                         previousDelay = nextDelay;
                         continue;
@@ -118,6 +120,8 @@ namespace Carom
 
                     // Calculate and wait for the next delay
                     var nextDelay = JitterStrategy.CalculateDelay(delay, previousDelay, disableJitter, attempt + 1, maxDelay);
+                    var onRetry = CaromHooks.OnRetry;
+                    if (onRetry != null) onRetry(new RetrySignal(attempt + 1, nextDelay, ex.GetType().Name));
                     Thread.Sleep(nextDelay);
                     previousDelay = nextDelay;
                 }
@@ -166,6 +170,8 @@ namespace Carom
                     if (attempt >= retries) throw;
 
                     var nextDelay = JitterStrategy.CalculateDelay(delay, previousDelay, disableJitter, attempt + 1, maxDelay);
+                    var onRetry = CaromHooks.OnRetry;
+                    if (onRetry != null) onRetry(new RetrySignal(attempt + 1, nextDelay, ex.GetType().Name));
                     Thread.Sleep(nextDelay);
                     previousDelay = nextDelay;
                 }
@@ -425,6 +431,8 @@ namespace Carom
 
                         // Calculate and wait for the next delay
                         var nextDelay = JitterStrategy.CalculateDelay(delay, previousDelay, disableJitter, attempt + 1, maxDelay);
+                        var onResultRetry = CaromHooks.OnRetry;
+                        if (onResultRetry != null) onResultRetry(new RetrySignal(attempt + 1, nextDelay, null));
                         await Task.Delay(nextDelay, effectiveCt).ConfigureAwait(false);
                         previousDelay = nextDelay;
                         continue;
@@ -458,6 +466,8 @@ namespace Carom
 
                     // Calculate and wait for the next delay
                     var nextDelay = JitterStrategy.CalculateDelay(delay, previousDelay, disableJitter, attempt + 1, maxDelay);
+                    var onRetry = CaromHooks.OnRetry;
+                    if (onRetry != null) onRetry(new RetrySignal(attempt + 1, nextDelay, ex.GetType().Name));
                     await BackoffDelayAsync(nextDelay, effectiveCt, timeout, ct).ConfigureAwait(false);
                     previousDelay = nextDelay;
                 }
@@ -595,6 +605,8 @@ namespace Carom
                     if (attempt >= retries) throw;
 
                     var nextDelay = JitterStrategy.CalculateDelay(delay, previousDelay, disableJitter, attempt + 1, maxDelay);
+                    var onRetry = CaromHooks.OnRetry;
+                    if (onRetry != null) onRetry(new RetrySignal(attempt + 1, nextDelay, ex.GetType().Name));
                     await BackoffDelayAsync(nextDelay, effectiveCt, timeout, ct).ConfigureAwait(false);
                     previousDelay = nextDelay;
                 }

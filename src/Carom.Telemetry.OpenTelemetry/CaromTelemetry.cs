@@ -48,6 +48,57 @@ namespace Carom.Telemetry.OpenTelemetry
             unit: "ms",
             description: "Retry delay duration in milliseconds");
 
+        // Cached handlers so Unsubscribe removes exactly what Subscribe added.
+        private static readonly object SubscriptionGate = new object();
+        private static bool _subscribed;
+
+        private static readonly Action<RetrySignal> RetryHandler =
+            s => RecordRetry(s.Attempt, s.Delay.TotalMilliseconds, s.ExceptionTypeName);
+
+        private static readonly Action<CircuitOpenedSignal> CircuitOpenedHandler =
+            s => RecordCircuitBreakerOpen(s.ServiceKey);
+
+        private static readonly Action<BulkheadRejectedSignal> BulkheadRejectedHandler =
+            s => RecordBulkheadRejection(s.ResourceKey);
+
+        private static readonly Action<RateLimitRejectedSignal> RateLimitRejectedHandler =
+            s => RecordRateLimitRejection(s.ServiceKey);
+
+        /// <summary>
+        /// Wires the CaromHooks seam to these instruments so retries, circuit opens,
+        /// bulkhead rejections and rate limit rejections are recorded automatically.
+        /// Safe to call more than once; each signal is recorded once.
+        /// </summary>
+        public static void Subscribe()
+        {
+            lock (SubscriptionGate)
+            {
+                if (_subscribed) return;
+                CaromHooks.OnRetry += RetryHandler;
+                CaromHooks.OnCircuitOpened += CircuitOpenedHandler;
+                CaromHooks.OnBulkheadRejected += BulkheadRejectedHandler;
+                CaromHooks.OnRateLimitRejected += RateLimitRejectedHandler;
+                _subscribed = true;
+            }
+        }
+
+        /// <summary>
+        /// Removes the handlers added by <see cref="Subscribe"/>. Safe to call more
+        /// than once. Other subscribers on the hooks are left untouched.
+        /// </summary>
+        public static void Unsubscribe()
+        {
+            lock (SubscriptionGate)
+            {
+                if (!_subscribed) return;
+                CaromHooks.OnRetry -= RetryHandler;
+                CaromHooks.OnCircuitOpened -= CircuitOpenedHandler;
+                CaromHooks.OnBulkheadRejected -= BulkheadRejectedHandler;
+                CaromHooks.OnRateLimitRejected -= RateLimitRejectedHandler;
+                _subscribed = false;
+            }
+        }
+
         /// <summary>
         /// Creates an activity for a Carom operation.
         /// </summary>

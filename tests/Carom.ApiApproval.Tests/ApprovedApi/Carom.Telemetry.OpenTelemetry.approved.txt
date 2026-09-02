@@ -9,5 +9,7 @@ namespace Carom.Telemetry.OpenTelemetry
         public static void RecordRateLimitRejection(string serviceKey) { }
         public static void RecordRetry(int attempt, double delayMs, string? exceptionType = null) { }
         public static System.Diagnostics.Activity? StartActivity(string operationName, System.Diagnostics.ActivityKind kind = 0) { }
+        public static void Subscribe() { }
+        public static void Unsubscribe() { }
     }
 }
