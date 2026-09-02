@@ -13,21 +13,23 @@ Runs on .NET 10 and .NET 8. The core packages target `netstandard2.0`, so .NET F
 ## 🎯 Why Carom?
 
 - **Zero Dependencies** (core packages)
-- **Minimal Allocations** (<100 bytes on hot path)
+- **Zero Allocations** (0 bytes on the successful hot path, test-enforced)
 - **Safe by Default** (mandatory decorrelated jitter)
-- **Tiny Footprint** (19KB core, 50KB extensions)
+- **Tiny Footprint** (20KB core, 50KB extensions)
 - **Fully Composable** (all patterns work together)
 
 ## 📦 Packages
 
-| Package | Version | Size | Purpose |
-|---------|---------|------|---------|
-| **Carom** | v1.3.0 | 13KB | Core retry + timeout |
-| **Carom.Extensions** | v1.4.0 | 20KB | Circuit Breaker, Fallback, Bulkhead, Rate Limiting |
-| **Carom.Http** | v1.0.0 | 11KB | HTTP integration |
-| **Carom.AspNetCore** | v1.0.0 | 10KB | ASP.NET Core health checks |
-| **Carom.EntityFramework** | v1.0.0 | 10KB | EF Core retry |
-| **Carom.Telemetry.OpenTelemetry** | v1.0.0 | 9KB | OpenTelemetry metrics |
+Sizes are the Release-built assemblies. Tests keep the core and extensions figures honest.
+
+| Package | Size | Purpose |
+|---------|------|---------|
+| **Carom** | 20KB | Core retry + timeout |
+| **Carom.Extensions** | 50KB | Circuit Breaker, Fallback, Bulkhead, Rate Limiting |
+| **Carom.Http** | 13KB | HTTP integration |
+| **Carom.AspNetCore** | 9KB | ASP.NET Core health checks |
+| **Carom.EntityFramework** | 10KB | EF Core retry |
+| **Carom.Telemetry.OpenTelemetry** | 7KB | OpenTelemetry metrics |
 
 ## 🚀 Quick Start
 
@@ -131,10 +133,12 @@ Built with the [Baryo.Dev](https://github.com/BaryoDev) philosophy: zero depende
 
 ## 📊 Performance
 
-Carom is **significantly faster** than Polly v8:
+Speed is not the pitch. Per successful call, both Carom and Polly cost nanoseconds, invisible next to the network or database call being wrapped. What Carom offers is small, allocation-free, dependency-free resilience for hosts where the standard stack is too much: .NET Framework and netstandard2.0 services, size-constrained deployments, and libraries that should not impose a dependency graph.
 
-- **175,000x faster** startup (0.02ns vs 3,857ns)
-- **15x faster** hot path (10.9ns vs 167.8ns)  
-- **4.8x faster** async operations (45ns vs 216ns)
+The claims we do make are measured (Apple M1, .NET 8, against Polly 8.4.2) and enforced by `tests/Carom.Tests/PublishedClaimsTests.cs`:
 
-See [detailed benchmarks](docs/BENCHMARKS.md) for complete analysis.
+- **Zero allocations on the successful hot path**: Carom 0 B per call. Polly v8 allocates 24 B per call, the Polly v7 API 248 B.
+- **Small on disk**: Carom.dll is 20 KB and Carom.Extensions.dll 50 KB. Polly.Core.dll (net8.0) is 237 KB.
+- **Zero package dependencies on every target**: Polly.Core has none on net8.0 but needs four packages on netstandard2.0 and five on .NET Framework.
+
+Details and methodology in [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
