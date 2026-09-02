@@ -174,32 +174,44 @@ namespace Carom.Tests
         {
             var successCount = 0;
             var cancellationCount = 0;
+            var executionCount = 0;
             var tasks = new List<Task>();
 
-            // Simulate attack: concurrent operations with random cancellations
+            // Concurrent operations; every fifth is cancelled while its work is in
+            // flight, deterministically, instead of racing a timer against the work
             for (int i = 0; i < 50; i++)
             {
                 int taskId = i;
                 tasks.Add(Task.Run(async () =>
                 {
-                    var cts = new CancellationTokenSource();
-                    
-                    // Randomly cancel some operations
+                    using var cts = new CancellationTokenSource();
+                    var entered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+                    var operation = Carom.ShotAsync(
+                        async () =>
+                        {
+                            Interlocked.Increment(ref executionCount);
+                            entered.TrySetResult(true);
+                            if (taskId % 5 == 0)
+                            {
+                                // Parks until the cancellation below lands
+                                await Task.Delay(Timeout.Infinite, cts.Token);
+                            }
+                            await Task.Yield();
+                            Interlocked.Increment(ref successCount);
+                        },
+                        retries: 2,
+                        ct: cts.Token);
+
                     if (taskId % 5 == 0)
                     {
-                        cts.CancelAfter(1);
+                        await entered.Task;
+                        cts.Cancel();
                     }
 
                     try
                     {
-                        await Carom.ShotAsync(
-                            async () =>
-                            {
-                                await Task.Delay(10, cts.Token);
-                                Interlocked.Increment(ref successCount);
-                            },
-                            retries: 2,
-                            ct: cts.Token);
+                        await operation;
                     }
                     catch (OperationCanceledException)
                     {
@@ -209,11 +221,12 @@ namespace Carom.Tests
             }
 
             await Task.WhenAll(tasks);
-            
-            // Should have mixture of successes and cancellations
-            Assert.True(successCount > 0);
-            Assert.True(cancellationCount > 0);
+
+            // No lost or double-counted work, and a cancelled attempt is never retried
+            Assert.Equal(40, successCount);
+            Assert.Equal(10, cancellationCount);
             Assert.Equal(50, successCount + cancellationCount);
+            Assert.Equal(50, executionCount);
         }
 
         [Fact]
@@ -294,30 +307,22 @@ namespace Carom.Tests
         {
             var attemptCount = 0;
             var timeout = TimeSpan.FromMilliseconds(100);
-            var stopwatch = Stopwatch.StartNew();
 
-            try
-            {
-                await Carom.ShotAsync(async () =>
+            var ex = await Assert.ThrowsAnyAsync<Exception>(() =>
+                Carom.ShotAsync(async () =>
                 {
                     attemptCount++;
                     await Task.Delay(50); // Each attempt takes 50ms
                     throw new InvalidOperationException("Always fails");
-                }, retries: 10, 
-                   baseDelay: TimeSpan.FromMilliseconds(10), 
-                   timeout: timeout);
-            }
-            catch
-            {
-                // Expected (timeout or operation failure)
-            }
+                }, retries: 10,
+                   baseDelay: TimeSpan.FromMilliseconds(10),
+                   timeout: timeout));
 
-            stopwatch.Stop();
-
-            // Should timeout before completing all retries (DoS prevention)
-            Assert.True(stopwatch.ElapsedMilliseconds < 500, 
-                $"Expected timeout around 100ms, but took {stopwatch.ElapsedMilliseconds}ms");
-            Assert.True(attemptCount < 10, 
+            // The timeout must be what stopped the loop, not retry exhaustion. Which
+            // form surfaces depends on where the cancellation lands; both mean it fired.
+            Assert.True(ex is TimeoutRejectedException || ex is OperationCanceledException,
+                $"Expected the timeout to cut the retry loop short, got {ex.GetType().Name}");
+            Assert.True(attemptCount < 10,
                 $"Expected fewer than 10 attempts due to timeout, got {attemptCount}");
         }
 
@@ -355,7 +360,7 @@ namespace Carom.Tests
             var concurrentRequests = 100;
             var maxRetries = 2;
             var completedCount = 0;
-            var stopwatch = Stopwatch.StartNew();
+            var failedCount = 0;
 
             var tasks = Enumerable.Range(0, concurrentRequests).Select(async i =>
             {
@@ -369,22 +374,21 @@ namespace Carom.Tests
                             throw new InvalidOperationException("Transient failure");
                         }
                     }, retries: maxRetries, baseDelay: TimeSpan.FromMilliseconds(1));
-                    
+
                     Interlocked.Increment(ref completedCount);
                 }
-                catch
+                catch (InvalidOperationException)
                 {
-                    // Expected for some operations
+                    Interlocked.Increment(ref failedCount);
                 }
             });
 
             await Task.WhenAll(tasks);
-            stopwatch.Stop();
 
-            // Should complete in reasonable time despite load
-            Assert.True(stopwatch.ElapsedMilliseconds < 5000, 
-                $"Expected completion under 5s, took {stopwatch.ElapsedMilliseconds}ms");
-            Assert.True(completedCount > 0, "At least some operations should succeed");
+            // Deterministic split: odd requests always succeed, even ones always
+            // exhaust their retries. A lost or double-counted operation breaks it.
+            Assert.Equal(50, completedCount);
+            Assert.Equal(50, failedCount);
         }
 
         #endregion
