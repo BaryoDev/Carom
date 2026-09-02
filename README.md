@@ -15,7 +15,7 @@ Runs on .NET 10 and .NET 8. The core packages target `netstandard2.0`, so .NET F
 - **Zero Dependencies** (core packages)
 - **Zero Allocations** (0 bytes on the successful hot path, test-enforced)
 - **Safe by Default** (mandatory decorrelated jitter)
-- **Tiny Footprint** (20KB core, 50KB extensions)
+- **Tiny Footprint** (21.5KB core, 53.5KB extensions)
 - **Fully Composable** (all patterns work together)
 
 ## 📦 Packages
@@ -24,8 +24,8 @@ Sizes are the Release-built assemblies. Tests keep the core and extensions figur
 
 | Package | Size | Purpose |
 |---------|------|---------|
-| **Carom** | 20KB | Core retry + timeout |
-| **Carom.Extensions** | 50KB | Circuit Breaker, Fallback, Bulkhead, Rate Limiting |
+| **Carom** | 21.5KB | Core retry + timeout |
+| **Carom.Extensions** | 53.5KB | Circuit Breaker, Fallback, Bulkhead, Rate Limiting |
 | **Carom.Http** | 13KB | HTTP integration |
 | **Carom.AspNetCore** | 9KB | ASP.NET Core health checks |
 | **Carom.EntityFramework** | 10KB | EF Core retry |
@@ -59,13 +59,22 @@ var data = await Carom.ShotAsync(() => apiClient.FetchAsync(), bounce);
 using Carom.Extensions;
 
 var cushion = Cushion.ForService("payment-api")
-    .OpenAfter(failures: 5, within: 10)
+    .OpenAfter(failures: 5, trackingLast: 10)
+    .WithinLast(TimeSpan.FromMinutes(1))
+    .When(ex => ex is HttpRequestException)
     .HalfOpenAfter(TimeSpan.FromSeconds(30));
 
 var payment = await CaromCushionExtensions.ShotAsync(
     () => paymentApi.Charge(), 
     cushion);
 ```
+
+The circuit opens as soon as 5 failures are recorded. `trackingLast` bounds how far back
+failures are counted, and `WithinLast` expires them by age, so an old incident cannot
+combine with a fresh failure to trip the breaker. `When` decides which exceptions count
+as the dependency's fault: without it, a bug in your own calling code would open the
+circuit on a healthy service. Retries run inside the breaker, so one logical call
+records one outcome no matter how many attempts it took.
 
 ### Fallback
 
@@ -138,7 +147,7 @@ Speed is not the pitch. Per successful call, both Carom and Polly cost nanosecon
 The claims we do make are measured (Apple M1, .NET 8, against Polly 8.4.2) and enforced by `tests/Carom.Tests/PublishedClaimsTests.cs`:
 
 - **Zero allocations on the successful hot path**: Carom 0 B per call. Polly v8 allocates 24 B per call, the Polly v7 API 248 B.
-- **Small on disk**: Carom.dll is 20 KB and Carom.Extensions.dll 50 KB. Polly.Core.dll (net8.0) is 237 KB.
+- **Small on disk**: Carom.dll is 21.5 KB and Carom.Extensions.dll 53.5 KB. Polly.Core.dll (net8.0) is 237 KB.
 - **Zero package dependencies on every target**: Polly.Core has none on net8.0 but needs four packages on netstandard2.0 and five on .NET Framework.
 
 Details and methodology in [docs/BENCHMARKS.md](docs/BENCHMARKS.md).

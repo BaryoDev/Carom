@@ -5,6 +5,99 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - Unreleased
+
+Twelve defects found by an adversarial audit of the retry, timeout, circuit
+breaker and bulkhead paths, each reproduced against the built assemblies and run
+head to head against Polly v8, the Polly v7 API and System.Threading.RateLimiting.
+The published suite was green throughout, so every one of these sat in a blind
+spot the tests did not reach.
+
+### Breaking - Carom
+
+- A negative `WithDelay` now throws `ArgumentOutOfRangeException` at
+  configuration time. It used to reach `Thread.Sleep`/`Task.Delay` from inside
+  the catch block, so the timer's exception replaced the caller's real one and
+  no retry happened at all
+- A non-positive `WithTimeout` now throws `ArgumentOutOfRangeException`.
+  `TimeSpan.Zero` used to race the operation and was enforced 22 times in 200
+  identical runs
+- `OperationCanceledException` is never retried, and a `shouldBounce` predicate
+  can only narrow what gets retried, never widen it to include cancellation.
+  A cancelled operation used to be retried four times through every extension
+  entry point, because they all supply a predicate that returned true for it
+- `TimeoutRejectedException` is exempt from that rule and stays retryable, so an
+  outer retry around an inner timeout still works. A Shot's own timeout still
+  ends that call rather than feeding its own loop
+
+### Breaking - Carom.Extensions
+
+- `CushionBuilder.OpenAfter(int failures, int within)` is now
+  `OpenAfter(int failures, int trackingLast)`. The old name read as a duration
+  and was a call count
+- The circuit opens as soon as `failures` failures are recorded. It used to
+  require the window to be full first, so `OpenAfter(3, within: 5)` needed five
+  failures, not three, and a hard-down low-traffic dependency kept being called
+- Failures older than the sampling duration stop counting, one minute by
+  default. The window had no time dimension at all, so failures from a resolved
+  incident sat in the buffer until enough traffic flushed them
+- Retries now run inside the breaker, so one logical call records one outcome.
+  Retry used to wrap the breaker, so a single call with the default retry count
+  wrote four entries and could open a circuit sized for five separate failures
+- `CushionStore` rejects a registration that disagrees with the entry already
+  holding the key on `FailureThreshold`, `SamplingWindow`, `HalfOpenDelay` or
+  `SamplingDuration`. It used to compare `SamplingWindow` alone, so a lenient
+  call site silently repurposed a circuit a strict one had registered
+
+### Added - Carom
+
+- `ShotAsync` overloads taking `Func<CancellationToken, Task<T>>` and
+  `Func<CancellationToken, Task>`. Without them a timeout could stop the caller
+  waiting but never stop the work, and no caller could fix that from outside.
+  The existing overloads still work and their XML docs now say they abandon the
+  operation on timeout
+
+### Added - Carom.Extensions
+
+- `CushionBuilder.When(Func<Exception, bool>)` decides which exceptions count as
+  the dependency's fault. Without it every exception counted, so a bug in the
+  calling code opened the circuit on a healthy service
+- `CushionBuilder.WithinLast(TimeSpan)` sets the sampling duration
+
+### Fixed - Carom.Extensions
+
+- `CompartmentStore` validates a conflicting registration on the lost-`GetOrAdd`
+  race as well as the sequential path. Under a concurrent first touch, 16 of 50
+  conflicting registrations were accepted silently, so a bulkhead sized for one
+  could run at fifty. This is the bug `ThrottleStore` had already fixed
+- All three stores now share one conflict rule in `StoreConflictHelper` and call
+  it on both registration paths. The rule existed in three copies and was
+  enforced fully in one
+
+### Changed - docs
+
+- The README's performance claims (175,000x startup, 15x hot path, 4.8x async)
+  and the separate, contradictory set in `docs/BENCHMARKS.md` (3,750x, 2x, 2x)
+  are removed rather than corrected. Neither was gated and measurement supported
+  neither. What remains is what a test defends: zero allocations on the
+  successful hot path, the measured assembly sizes, and per-target dependency
+  counts
+- `tests/Carom.Tests/PublishedClaimsTests.cs` gates those claims, so a published
+  number cannot go stale unnoticed again
+
+### Known issues
+
+- Several tests assert on wall-clock timing under concurrency and fail
+  intermittently on net8.0 when the machine is loaded, proved with an
+  interleaved A/B against an unmodified checkout. `CONTRIBUTING.md` already
+  asks for the injectable clock instead. Affected:
+  `MasseHedgeDelayTests.Hedging_waits_the_hedge_delay_between_unsatisfactory_results`,
+  `ExtensionsEdgeCaseTests.Compartment_HighConcurrency_HandlesCorrectly`,
+  `RealWorldUseCaseTests.RateLimiter_EnforcesApiQuota`,
+  `ResiliencePipelineTests.ResiliencePipeline_Timeout_ThrowsTimeoutException`,
+  `EdgeCaseTests.Shot_WithZeroBaseDelay_ExecutesImmediately`,
+  `SecurityTests.ShotAsync_ThreadSafe_UnderConcurrentCancellation`
+
 ## [1.7.0] - 2026-08-28
 
 ### Added
