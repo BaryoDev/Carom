@@ -72,6 +72,23 @@ namespace Carom.Extensions.Tests
         }
 
         [Fact]
+        public void A_max_value_sampling_duration_still_opens_the_circuit()
+        {
+            // TimeSpan.MaxValue passes validation but overflows the timestamp
+            // conversion; an unsaturated cast can go negative and then every
+            // failure looks stale, so the circuit never opens.
+            var now = Seconds(100);
+            var state = new CushionState(
+                samplingWindow: 3, () => now, samplingDuration: TimeSpan.MaxValue);
+
+            Assert.False(state.RecordFailureAndTryOpen(failureThreshold: 3));
+            Assert.False(state.RecordFailureAndTryOpen(failureThreshold: 3));
+            Assert.True(state.RecordFailureAndTryOpen(failureThreshold: 3),
+                "three fresh failures did not open the circuit; the sampling duration went negative");
+            Assert.Equal(CircuitState.Open, state.State);
+        }
+
+        [Fact]
         public void Builder_threads_the_sampling_duration_through()
         {
             var cushion = Cushion.ForService("car10-thread-" + Guid.NewGuid())

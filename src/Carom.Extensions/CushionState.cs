@@ -52,8 +52,16 @@ namespace Carom.Extensions
             _state = (int)CircuitState.Closed;
             _timestamp = timestamp ?? Stopwatch.GetTimestamp;
             _samplingDurationTimestamps = samplingDuration.HasValue
-                ? (long)(samplingDuration.Value.TotalSeconds * Stopwatch.Frequency)
+                ? ToTimestampUnits(samplingDuration.Value)
                 : long.MaxValue;
+        }
+
+        // Out of range double to long casts are unspecified before .NET 9 and can
+        // go negative, so saturate at the no-expiry sentinel instead.
+        private static long ToTimestampUnits(TimeSpan duration)
+        {
+            double units = duration.TotalSeconds * Stopwatch.Frequency;
+            return units >= long.MaxValue ? long.MaxValue : (long)units;
         }
 
         /// <summary>
