@@ -122,17 +122,45 @@ public class DbContextRetryTests
     }
 
     [Fact]
-    public async Task TimeoutRejectedIsNotRetriedBecauseTheClassifierMissesTimedOut()
+    public async Task TimeoutRejectedIsRetriedAsTransient()
     {
-        // Pins current behaviour. Core lets TimeoutRejectedException through to shouldBounce,
-        // but IsTransientError matches "timeout" and the message says "timed out", so the
-        // package treats a timeout as permanent. Reported as a finding on issue #34.
-        using var context = new ScriptedDbContext(1,
+        // CAR-16 fix. The classifier recognises TimeoutRejectedException by type,
+        // since its "timed out" message never matched the "timeout" needle.
+        using var context = new ScriptedDbContext(9,
             new TimeoutRejectedException(TimeSpan.FromMilliseconds(50)));
 
-        await Assert.ThrowsAsync<TimeoutRejectedException>(() => context.SaveChangesWithRetryAsync());
+        var written = await context.SaveChangesWithRetryAsync();
 
-        Assert.Equal(1, context.Attempts);
+        Assert.Equal(9, written);
+        Assert.Equal(2, context.Attempts);
+    }
+
+    [Fact]
+    public async Task TimeoutRejectedIsRetriedThroughTheBounceOverload()
+    {
+        // Core exempts TimeoutRejectedException from the never-retry-cancellation rule,
+        // so the Bounce overload retries it even with no predicate set.
+        using var context = new ScriptedDbContext(4,
+            new TimeoutRejectedException(TimeSpan.FromMilliseconds(50)));
+
+        var written = await context.SaveChangesWithRetryAsync(
+            Bounce.Times(2).WithDelay(TimeSpan.Zero));
+
+        Assert.Equal(4, written);
+        Assert.Equal(2, context.Attempts);
+    }
+
+    [Fact]
+    public async Task DbUpdateExceptionWrappingTimeoutRejectedIsRetried()
+    {
+        // The type check applies to the unwrapped inner exception as well.
+        using var context = new ScriptedDbContext(6,
+            new DbUpdateException("save failed", new TimeoutRejectedException(TimeSpan.FromMilliseconds(50))));
+
+        var written = await context.SaveChangesWithRetryAsync();
+
+        Assert.Equal(6, written);
+        Assert.Equal(2, context.Attempts);
     }
 
     [Theory]
