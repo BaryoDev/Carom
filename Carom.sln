@@ -41,6 +41,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Carom.EntityFramework.Tests
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Carom.Telemetry.OpenTelemetry.Tests", "tests\Carom.Telemetry.OpenTelemetry.Tests\Carom.Telemetry.OpenTelemetry.Tests.csproj", "{D821AE31-0B33-41C5-A652-3C8FFBA9443D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Carom.AspNetCore.Tests", "tests\Carom.AspNetCore.Tests\Carom.AspNetCore.Tests.csproj", "{06AD07A1-7416-41BC-B47E-6E33791937B1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -243,6 +245,18 @@ Global
 		{D821AE31-0B33-41C5-A652-3C8FFBA9443D}.Release|x64.Build.0 = Release|Any CPU
 		{D821AE31-0B33-41C5-A652-3C8FFBA9443D}.Release|x86.ActiveCfg = Release|Any CPU
 		{D821AE31-0B33-41C5-A652-3C8FFBA9443D}.Release|x86.Build.0 = Release|Any CPU
+		{06AD07A1-7416-41BC-B47E-6E33791937B1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{06AD07A1-7416-41BC-B47E-6E33791937B1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{06AD07A1-7416-41BC-B47E-6E33791937B1}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{06AD07A1-7416-41BC-B47E-6E33791937B1}.Debug|x64.Build.0 = Debug|Any CPU
+		{06AD07A1-7416-41BC-B47E-6E33791937B1}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{06AD07A1-7416-41BC-B47E-6E33791937B1}.Debug|x86.Build.0 = Debug|Any CPU
+		{06AD07A1-7416-41BC-B47E-6E33791937B1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{06AD07A1-7416-41BC-B47E-6E33791937B1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{06AD07A1-7416-41BC-B47E-6E33791937B1}.Release|x64.ActiveCfg = Release|Any CPU
+		{06AD07A1-7416-41BC-B47E-6E33791937B1}.Release|x64.Build.0 = Release|Any CPU
+		{06AD07A1-7416-41BC-B47E-6E33791937B1}.Release|x86.ActiveCfg = Release|Any CPU
+		{06AD07A1-7416-41BC-B47E-6E33791937B1}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -261,5 +275,6 @@ Global
 		{A11D2EF2-B963-455C-AC9A-B4862C9CFC29} = {92C92E59-A76E-4AB2-842A-AF22E07901C0}
 		{BA696805-B73E-40D5-A54D-7D5D031A3472} = {92C92E59-A76E-4AB2-842A-AF22E07901C0}
 		{D821AE31-0B33-41C5-A652-3C8FFBA9443D} = {92C92E59-A76E-4AB2-842A-AF22E07901C0}
+		{06AD07A1-7416-41BC-B47E-6E33791937B1} = {92C92E59-A76E-4AB2-842A-AF22E07901C0}
 	EndGlobalSection
 EndGlobal
