@@ -74,10 +74,14 @@ namespace Carom
         /// <summary>
         /// Sets the base delay between retries.
         /// </summary>
-        /// <param name="delay">The base delay.</param>
+        /// <param name="delay">The base delay. Must not be negative.</param>
         /// <returns>A new Bounce configuration with the specified delay.</returns>
-        public Bounce WithDelay(TimeSpan delay) =>
-            new Bounce(Retries, delay, Timeout, DisableJitter, ShouldBounce);
+        public Bounce WithDelay(TimeSpan delay)
+        {
+            if (delay < TimeSpan.Zero)
+                throw new ArgumentOutOfRangeException(nameof(delay), "Delay cannot be negative");
+            return new Bounce(Retries, delay, Timeout, DisableJitter, ShouldBounce);
+        }
 
         /// <summary>
         /// Disables jitter, using fixed exponential backoff instead.
@@ -177,10 +181,14 @@ namespace Carom
         /// <summary>
         /// Sets the base delay between retries.
         /// </summary>
-        /// <param name="delay">The base delay.</param>
+        /// <param name="delay">The base delay. Must not be negative.</param>
         /// <returns>A new Bounce configuration with the specified delay.</returns>
-        public Bounce<T> WithDelay(TimeSpan delay) =>
-            new Bounce<T>(Retries, delay, Timeout, DisableJitter, ShouldBounce, ShouldRetryResult);
+        public Bounce<T> WithDelay(TimeSpan delay)
+        {
+            if (delay < TimeSpan.Zero)
+                throw new ArgumentOutOfRangeException(nameof(delay), "Delay cannot be negative");
+            return new Bounce<T>(Retries, delay, Timeout, DisableJitter, ShouldBounce, ShouldRetryResult);
+        }
 
         /// <summary>
         /// Disables jitter, using fixed exponential backoff instead.
