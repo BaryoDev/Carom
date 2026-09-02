@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
@@ -238,12 +239,15 @@ namespace Carom.Extensions.Tests
         }
 
         [Fact]
-        public async Task Cushion_HalfOpenState_FailureReopensCircuit()
+        public void Cushion_HalfOpenState_FailureReopensCircuit()
         {
+            // Driven by the injectable clock, so no wall-clock wait can misfire
+            var now = (long)(100 * Stopwatch.Frequency);
             var key = "half-open-fail-" + Guid.NewGuid();
             var cushion = Cushion.ForService(key)
                 .OpenAfter(2, 2)
-                .HalfOpenAfter(TimeSpan.FromMilliseconds(50));
+                .WithTimestamp(() => now)
+                .HalfOpenAfter(TimeSpan.FromSeconds(30));
 
             // Open the circuit
             for (int i = 0; i < 2; i++)
@@ -255,32 +259,34 @@ namespace Carom.Extensions.Tests
                         cushion,
                         retries: 0);
                 }
-                catch (Exception)
+                catch (InvalidOperationException)
                 {
                     // Expected
                 }
             }
 
-            // Wait for half-open
-            await Task.Delay(100);
-
-            // Fail the half-open test
-            try
-            {
-                CaromCushionExtensions.Shot<int>(
-                    () => throw new InvalidOperationException(),
-                    cushion,
-                    retries: 0);
-            }
-            catch (InvalidOperationException)
-            {
-                // Expected
-            }
-
-            // Circuit should be open again. Checked via state, not another call:
-            // under load the 50ms half-open delay can elapse again before a probe
-            // call runs, which made the behavioural assertion flaky.
             Assert.Equal(CircuitState.Open, Cushion.GetState(key));
+
+            // The delay elapses on the fake clock; the next call is the probe
+            now += (long)(31 * Stopwatch.Frequency);
+
+            var probed = false;
+            Assert.Throws<InvalidOperationException>(() =>
+                CaromCushionExtensions.Shot<int>(
+                    () =>
+                    {
+                        probed = true;
+                        throw new InvalidOperationException();
+                    },
+                    cushion,
+                    retries: 0));
+            Assert.True(probed, "the half-open probe did not run");
+
+            // The failed probe reopened the circuit, and the clock has not moved,
+            // so the next call is rejected without another probe under any load.
+            Assert.Equal(CircuitState.Open, Cushion.GetState(key));
+            Assert.Throws<CircuitOpenException>(() =>
+                CaromCushionExtensions.Shot(() => 42, cushion, retries: 0));
         }
 
         #endregion
