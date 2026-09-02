@@ -191,14 +191,20 @@ namespace Carom.DependencyInjection
     {
         private readonly TimeSpan _timeout;
 
-        public TimeoutStrategy(TimeSpan timeout)
+        // Monotonic clock, same reasoning as CushionState and ThrottleState (issue #8).
+        // Injectable so tests can drive the clock instead of sleeping.
+        private readonly Func<long> _timestamp;
+
+        public TimeoutStrategy(TimeSpan timeout, Func<long>? timestamp = null)
         {
             _timeout = timeout;
+            _timestamp = timestamp ?? System.Diagnostics.Stopwatch.GetTimestamp;
         }
 
         public T Execute<T>(Func<T> action)
         {
             // Synchronous timeout using task-based approach with cancellation
+            var started = _timestamp();
             using var cts = new CancellationTokenSource(_timeout);
             var token = cts.Token;
             var task = Task.Run(action, token);
@@ -209,6 +215,13 @@ namespace Carom.DependencyInjection
                     cts.Cancel();
                     // Observe any exception to avoid UnobservedTaskException
                     task.ContinueWith(static t => { var _ = t.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
+                    throw new TimeoutException($"Operation timed out after {_timeout.TotalMilliseconds}ms");
+                }
+                // Backstop: under suite load the wait can report success after the
+                // budget passed. This does not stop the work, it only guarantees
+                // the caller is told the deadline was missed.
+                if (ExceededBudget(started))
+                {
                     throw new TimeoutException($"Operation timed out after {_timeout.TotalMilliseconds}ms");
                 }
                 return task.GetAwaiter().GetResult();
@@ -222,17 +235,33 @@ namespace Carom.DependencyInjection
 
         public async Task<T> ExecuteAsync<T>(Func<CancellationToken, Task<T>> action, CancellationToken ct)
         {
+            var started = _timestamp();
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(_timeout);
 
             try
             {
-                return await action(cts.Token).ConfigureAwait(false);
+                var result = await action(cts.Token).ConfigureAwait(false);
+                // Backstop for actions that ignore the token and overrun. It does
+                // not stop the work, it only guarantees the caller is told.
+                if (ExceededBudget(started))
+                {
+                    throw new TimeoutException($"Operation timed out after {_timeout.TotalMilliseconds}ms");
+                }
+                return result;
             }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {
                 throw new TimeoutException($"Operation timed out after {_timeout.TotalMilliseconds}ms");
             }
+        }
+
+        // True when the elapsed monotonic time since started exceeds the budget.
+        private bool ExceededBudget(long started)
+        {
+            var elapsedSeconds = (_timestamp() - started)
+                / (double)System.Diagnostics.Stopwatch.Frequency;
+            return elapsedSeconds > _timeout.TotalSeconds;
         }
     }
 
