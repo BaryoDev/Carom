@@ -124,6 +124,27 @@ spot the tests did not reach.
   observable contract rather than explaining the cause, and the code says so.
   It does not stop the abandoned work, only guarantees the caller is told
 
+### Fixed - review follow-ups
+
+- The `Bounce` overloads on the Cushion, Compartment and Throttle extensions
+  unpacked selected fields by hand, so `MaxDelay` and the synchronous timeout
+  guard, both added in this release, never reached core through them. Measured:
+  a 50 ms `WithMaxDelay` took 5,615 ms through the extension against 170 ms
+  through core, and a `Bounce` carrying a timeout threw on core but was accepted
+  silently on all three extension paths. They now pass the whole `Bounce`
+  through, so a future field cannot drift the same way. This was the defect
+  class the release exists to fix, reintroduced by the release itself
+- `Carom.DependencyInjection`'s timeout reported `TaskCanceledException` instead
+  of `TimeoutException` when a saturated pool cancelled the queued task before
+  the action started. Found only once the pressure test was made to wait for
+  actual pressure rather than merely queueing blockers
+- `WithinLast(TimeSpan.MaxValue)` could overflow the conversion to timestamp
+  units and yield a negative duration on pre-.NET 9 runtimes, so fresh failures
+  were discarded and the circuit never opened. The conversion now saturates
+- The extensions size gate passed silently when it could not find the assembly,
+  and `docs/BENCHMARKS.md` stated the measured sizes as though the test asserted
+  them exactly rather than as upper bounds
+
 ### Fixed - Carom.EntityFramework
 
 - `TimeoutRejectedException` is now retried. The transient classifier decided
