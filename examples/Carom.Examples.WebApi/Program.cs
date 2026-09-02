@@ -30,7 +30,7 @@ static async Task PaymentGatewayExample()
 
     // Configure circuit breaker: open after 3 failures, tracked over the last 5 calls, half-open after 5 seconds
     var paymentCircuit = Cushion.ForService("payment-gateway")
-        .OpenAfter(failures: 3, outOf: 5)
+        .OpenAfter(failures: 3, trackingLast: 5)
         .HalfOpenAfter(TimeSpan.FromSeconds(5));
 
     var successCount = 0;
@@ -177,7 +177,7 @@ static async Task CompositeResilienceExample()
 
     // Layer 3: Circuit breaker for failure protection
     var cushion = Cushion.ForService("composite-service")
-        .OpenAfter(failures: 2, outOf: 5)
+        .OpenAfter(failures: 2, trackingLast: 5)
         .HalfOpenAfter(TimeSpan.FromSeconds(10));
 
     Console.WriteLine("  Processing orders with layered resilience...\n");

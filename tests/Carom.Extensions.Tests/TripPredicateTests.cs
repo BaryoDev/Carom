@@ -24,7 +24,7 @@ namespace Carom.Extensions.Tests
         {
             var key = "car01-excluded-" + Guid.NewGuid();
             var cushion = Cushion.ForService(key)
-                .OpenAfter(failures: 2, outOf: 5)
+                .OpenAfter(failures: 2, trackingLast: 5)
                 .When(ex => ex is DependencyDownException)
                 .HalfOpenAfter(TimeSpan.FromMinutes(10));
 
@@ -54,7 +54,7 @@ namespace Carom.Extensions.Tests
         {
             var key = "car01-excluded-async-" + Guid.NewGuid();
             var cushion = Cushion.ForService(key)
-                .OpenAfter(failures: 2, outOf: 5)
+                .OpenAfter(failures: 2, trackingLast: 5)
                 .When(ex => ex is DependencyDownException)
                 .HalfOpenAfter(TimeSpan.FromMinutes(10));
 
@@ -82,7 +82,7 @@ namespace Carom.Extensions.Tests
         {
             var key = "car01-default-" + Guid.NewGuid();
             var cushion = Cushion.ForService(key)
-                .OpenAfter(failures: 2, outOf: 5)
+                .OpenAfter(failures: 2, trackingLast: 5)
                 .HalfOpenAfter(TimeSpan.FromMinutes(10));
 
             for (int i = 0; i < 5; i++)

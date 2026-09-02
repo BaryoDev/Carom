@@ -86,7 +86,7 @@ namespace Carom.Extensions
     public class CushionBuilder
     {
         public Carom.Extensions.Cushion HalfOpenAfter(System.TimeSpan delay) { }
-        public Carom.Extensions.CushionBuilder OpenAfter(int failures, int outOf) { }
+        public Carom.Extensions.CushionBuilder OpenAfter(int failures, int trackingLast) { }
         public Carom.Extensions.CushionBuilder When(System.Func<System.Exception, bool> predicate) { }
         public Carom.Extensions.CushionBuilder WithinLast(System.TimeSpan duration) { }
     }

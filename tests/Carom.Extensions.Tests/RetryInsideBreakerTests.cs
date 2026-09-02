@@ -25,7 +25,7 @@ namespace Carom.Extensions.Tests
         {
             var key = "car03-depth-" + Guid.NewGuid();
             var cushion = Cushion.ForService(key)
-                .OpenAfter(failures: 2, outOf: 5)
+                .OpenAfter(failures: 2, trackingLast: 5)
                 .HalfOpenAfter(TimeSpan.FromMinutes(10));
 
             Assert.Throws<InvalidOperationException>(() =>
@@ -49,7 +49,7 @@ namespace Carom.Extensions.Tests
         {
             var key = "car03-depth-async-" + Guid.NewGuid();
             var cushion = Cushion.ForService(key)
-                .OpenAfter(failures: 2, outOf: 5)
+                .OpenAfter(failures: 2, trackingLast: 5)
                 .HalfOpenAfter(TimeSpan.FromMinutes(10));
 
             await Assert.ThrowsAsync<InvalidOperationException>(() =>
@@ -65,7 +65,7 @@ namespace Carom.Extensions.Tests
         {
             var key = "car03-bounce-" + Guid.NewGuid();
             var cushion = Cushion.ForService(key)
-                .OpenAfter(failures: 2, outOf: 5)
+                .OpenAfter(failures: 2, trackingLast: 5)
                 .HalfOpenAfter(TimeSpan.FromMinutes(10));
 
             Assert.Throws<InvalidOperationException>(() =>
@@ -81,7 +81,7 @@ namespace Carom.Extensions.Tests
         {
             var key = "car03-recovered-" + Guid.NewGuid();
             var cushion = Cushion.ForService(key)
-                .OpenAfter(failures: 1, outOf: 1)
+                .OpenAfter(failures: 1, trackingLast: 1)
                 .HalfOpenAfter(TimeSpan.FromMinutes(10));
 
             var attempts = 0;

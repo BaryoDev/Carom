@@ -260,16 +260,17 @@ namespace Carom.Extensions
 
         /// <summary>
         /// Sets the failure threshold and sampling window, both counts of calls.
-        /// The circuit opens as soon as the last <paramref name="outOf"/> recorded
-        /// calls contain <paramref name="failures"/> failures. The window does not
-        /// need to fill first: that many consecutive failures open it immediately.
+        /// The failure count is absolute, not a ratio: the circuit opens as soon as
+        /// <paramref name="failures"/> failures are recorded within the tracking
+        /// window, with no minimum call volume required. The window only bounds how
+        /// far back failures are counted; it has no say in when the circuit opens.
         /// </summary>
         /// <param name="failures">Number of failures to trigger circuit open.</param>
-        /// <param name="outOf">Number of most recent calls the failures are counted over.</param>
-        public CushionBuilder OpenAfter(int failures, int outOf)
+        /// <param name="trackingLast">Number of most recent calls the failures are counted over.</param>
+        public CushionBuilder OpenAfter(int failures, int trackingLast)
         {
             _failureThreshold = failures;
-            _samplingWindow = outOf;
+            _samplingWindow = trackingLast;
             return this;
         }
 

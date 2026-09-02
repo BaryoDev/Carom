@@ -75,7 +75,7 @@ namespace Carom.Extensions.Tests
         public void Builder_threads_the_sampling_duration_through()
         {
             var cushion = Cushion.ForService("car10-thread-" + Guid.NewGuid())
-                .OpenAfter(failures: 2, outOf: 5)
+                .OpenAfter(failures: 2, trackingLast: 5)
                 .WithinLast(TimeSpan.FromSeconds(7))
                 .HalfOpenAfter(TimeSpan.FromSeconds(30));
 
@@ -86,7 +86,7 @@ namespace Carom.Extensions.Tests
         public void Builder_defaults_the_sampling_duration_to_one_minute()
         {
             var cushion = Cushion.ForService("car10-default-" + Guid.NewGuid())
-                .OpenAfter(failures: 2, outOf: 5)
+                .OpenAfter(failures: 2, trackingLast: 5)
                 .HalfOpenAfter(TimeSpan.FromSeconds(30));
 
             Assert.Equal(TimeSpan.FromMinutes(1), cushion.SamplingDuration);
@@ -97,7 +97,7 @@ namespace Carom.Extensions.Tests
         {
             Assert.Throws<ArgumentException>(() =>
                 Cushion.ForService("car10-invalid-" + Guid.NewGuid())
-                    .OpenAfter(failures: 2, outOf: 5)
+                    .OpenAfter(failures: 2, trackingLast: 5)
                     .WithinLast(TimeSpan.Zero)
                     .HalfOpenAfter(TimeSpan.FromSeconds(30)));
         }

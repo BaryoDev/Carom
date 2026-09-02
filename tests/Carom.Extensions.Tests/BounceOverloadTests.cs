@@ -31,7 +31,7 @@ namespace Carom.Extensions.Tests
         {
             key = "bounce-overload-" + Guid.NewGuid();
             var cushion = Cushion.ForService(key)
-                .OpenAfter(failures: 1, outOf: 1)
+                .OpenAfter(failures: 1, trackingLast: 1)
                 .HalfOpenAfter(TimeSpan.FromMinutes(10)); // cannot drift to half-open mid-test
 
             Assert.Throws<InvalidOperationException>(() =>
@@ -133,7 +133,7 @@ namespace Carom.Extensions.Tests
             // must stop retries the default would have run.
             var key = "bounce-overload-" + Guid.NewGuid();
             var cushion = Cushion.ForService(key)
-                .OpenAfter(failures: 5, outOf: 5)
+                .OpenAfter(failures: 5, trackingLast: 5)
                 .HalfOpenAfter(TimeSpan.FromMinutes(10));
 
             var bounce = Bounce.On<TimeoutException>(retries: 2)

@@ -9,7 +9,7 @@ using Xunit;
 namespace Carom.Extensions.Tests
 {
     /// <summary>
-    /// CAR-09: OpenAfter(failures: 3, outOf: 5) required five failures, not three,
+    /// CAR-09: OpenAfter(failures: 3, trackingLast: 5) required five failures, not three,
     /// because the window had to be full before the threshold was consulted. The
     /// threshold must trip as soon as the last calls contain that many failures.
     /// </summary>
@@ -32,7 +32,7 @@ namespace Carom.Extensions.Tests
         {
             var key = "car09-exact-" + Guid.NewGuid();
             var cushion = Cushion.ForService(key)
-                .OpenAfter(failures: 3, outOf: 5)
+                .OpenAfter(failures: 3, trackingLast: 5)
                 .HalfOpenAfter(TimeSpan.FromMinutes(10));
 
             Fail(cushion);
@@ -49,7 +49,7 @@ namespace Carom.Extensions.Tests
         {
             var key = "car09-window-" + Guid.NewGuid();
             var cushion = Cushion.ForService(key)
-                .OpenAfter(failures: 3, outOf: 5)
+                .OpenAfter(failures: 3, trackingLast: 5)
                 .HalfOpenAfter(TimeSpan.FromMinutes(10));
 
             // Last five calls after this sequence are F S S S F: two failures only.
