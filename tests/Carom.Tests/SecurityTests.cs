@@ -29,7 +29,7 @@ namespace Carom.Tests
         public async Task ShotAsync_ValidatesNullAction()
         {
             var ex = await Assert.ThrowsAsync<ArgumentNullException>(() =>
-                Carom.ShotAsync<int>(null!, retries: 0));
+                Carom.ShotAsync<int>((Func<Task<int>>)null!, retries: 0));
             
             Assert.Equal("action", ex.ParamName);
         }
