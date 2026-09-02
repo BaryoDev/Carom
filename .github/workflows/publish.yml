@@ -38,15 +38,37 @@ jobs:
       - name: Run Tests
         run: dotnet test -c Release --no-build --verbosity normal
 
+      # Packs every packable project rather than a hand-kept list. The old list named six
+      # projects and missed Carom.DependencyInjection, so that package was built, tested and
+      # never shipped (#33) while CI stayed green asserting a seven-package set. A set written
+      # down twice drifts; derive it once.
       - name: Pack all packages
         run: |
           VERSION=${{ github.event.inputs.version }}
-          dotnet pack src/Carom -c Release -o ./dist /p:Version=$VERSION
-          dotnet pack src/Carom.Extensions -c Release -o ./dist /p:Version=$VERSION
-          dotnet pack src/Carom.Http -c Release -o ./dist /p:Version=$VERSION
-          dotnet pack src/Carom.AspNetCore -c Release -o ./dist /p:Version=$VERSION
-          dotnet pack src/Carom.EntityFramework -c Release -o ./dist /p:Version=$VERSION
-          dotnet pack src/Carom.Telemetry.OpenTelemetry -c Release -o ./dist /p:Version=$VERSION
+          dotnet pack Carom.sln -c Release -o ./dist /p:Version=$VERSION
+
+      # The same assertion CI makes, repeated here because this is the path that actually
+      # ships. A package missing from dist is a package nobody can install.
+      - name: Verify the package set
+        shell: bash
+        run: |
+          set -uo pipefail
+          expected="Carom Carom.AspNetCore Carom.DependencyInjection Carom.EntityFramework Carom.Extensions Carom.Http Carom.Telemetry.OpenTelemetry"
+          actual=$(find ./dist -maxdepth 1 -name '*.nupkg' ! -name '*.symbols.nupkg' -exec basename {} \; \
+                   | sed -E 's/\.[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?\.nupkg$//' | sort -u)
+          echo "packed:"; printf '  %s\n' $actual
+
+          fail=0
+          for want in $expected; do
+            printf '%s\n' "$actual" | grep -Fxq "$want" || { echo "::error::Missing package: $want"; fail=1; }
+          done
+          count=$(printf '%s\n' "$actual" | grep -c . || true)
+          want_count=$(printf '%s\n' $expected | grep -c .)
+          if [ "$count" -ne "$want_count" ]; then
+            echo "::error::Expected exactly $want_count packages, found $count."
+            fail=1
+          fi
+          [ "$fail" -eq 0 ] || exit 1
 
       - name: List packages
         run: ls -lh ./dist/*.nupkg
