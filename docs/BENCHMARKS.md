@@ -33,7 +33,7 @@ Release builds, bytes on disk:
 | Polly.Core.dll (net8.0, from the 8.4.2 package) | 242,736 B |
 | Polly.dll (net6.0, from the 8.4.2 package) | 297,520 B |
 
-`PublishedClaimsTests` bounds the Carom and Carom.Extensions sizes so the README figures cannot drift unnoticed.
+These figures are a snapshot from one Release build, not asserted values. `PublishedClaimsTests` enforces upper bounds only: Carom.dll must stay at or under 40,960 B and Carom.Extensions.dll at or under 102,400 B. A build inside those bounds passes even if it no longer matches this table, so a doubling cannot ship unnoticed but small drift can.
 
 ## Package dependencies by target framework
 
