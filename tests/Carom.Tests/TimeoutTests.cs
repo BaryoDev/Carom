@@ -144,5 +144,61 @@ namespace Carom.Tests
                     disableJitter: true,
                     ct: cts.Token));
         }
+
+        [Fact]
+        public void Bounce_WithTimeout_RejectsZero()
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                Bounce.Times(3).WithTimeout(TimeSpan.Zero));
+        }
+
+        [Fact]
+        public void Bounce_WithTimeout_RejectsNegative()
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                Bounce.Times(3).WithTimeout(TimeSpan.FromMilliseconds(-1)));
+        }
+
+        [Fact]
+        public void BounceOfT_WithTimeout_RejectsZero()
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                Bounce<int>.Times(3).WithTimeout(TimeSpan.Zero));
+        }
+
+        [Fact]
+        public void BounceOfT_WithTimeout_RejectsNegative()
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                Bounce<int>.Times(3).WithTimeout(TimeSpan.FromMilliseconds(-1)));
+        }
+
+        [Fact]
+        public async Task ShotAsync_ZeroTimeout_IsRejectedEveryRun()
+        {
+            // A zero timeout used to race the callee and win about one run in nine.
+            // A single call would pass most of the time, so this loops.
+            for (int i = 0; i < 200; i++)
+            {
+                await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+                    Carom.ShotAsync(
+                        () => Task.FromResult(42),
+                        retries: 0,
+                        timeout: TimeSpan.Zero));
+            }
+        }
+
+        [Fact]
+        public async Task ShotAsync_VoidOverload_ZeroTimeout_IsRejectedEveryRun()
+        {
+            for (int i = 0; i < 200; i++)
+            {
+                await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+                    Carom.ShotAsync(
+                        () => Task.CompletedTask,
+                        retries: 0,
+                        timeout: TimeSpan.Zero));
+            }
+        }
     }
 }

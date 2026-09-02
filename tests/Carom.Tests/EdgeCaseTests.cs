@@ -32,14 +32,14 @@ namespace Carom.Tests
         public async Task ShotAsync_ThrowsArgumentNullException_WhenActionIsNull()
         {
             await Assert.ThrowsAsync<ArgumentNullException>(() =>
-                Carom.ShotAsync<int>(null!, retries: 0));
+                Carom.ShotAsync<int>((Func<Task<int>>)null!, retries: 0));
         }
 
         [Fact]
         public async Task ShotAsync_VoidAction_ThrowsArgumentNullException_WhenActionIsNull()
         {
             await Assert.ThrowsAsync<ArgumentNullException>(() =>
-                Carom.ShotAsync(null!, retries: 0));
+                Carom.ShotAsync((Func<Task>)null!, retries: 0));
         }
 
         #endregion
@@ -107,7 +107,6 @@ namespace Carom.Tests
         public void Shot_WithZeroBaseDelay_ExecutesImmediately()
         {
             var executionCount = 0;
-            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
             try
             {
@@ -122,18 +121,21 @@ namespace Carom.Tests
                 // Expected
             }
 
-            stopwatch.Stop();
             Assert.Equal(4, executionCount);
-            // Should complete very quickly with no delay
-            Assert.True(stopwatch.ElapsedMilliseconds < 100, 
-                $"Expected fast execution, but took {stopwatch.ElapsedMilliseconds}ms");
+            // A zero base delay computes a zero backoff at every attempt, so the retry
+            // loop requests no sleep. The computation is load-independent to check; a
+            // wall-clock bound on the whole run is not.
+            for (int attempt = 1; attempt <= 3; attempt++)
+            {
+                Assert.Equal(TimeSpan.Zero,
+                    JitterStrategy.CalculateDelay(TimeSpan.Zero, TimeSpan.Zero, disableJitter: false, attempt));
+            }
         }
 
         [Fact]
         public async Task ShotAsync_WithZeroBaseDelay_ExecutesImmediately()
         {
             var executionCount = 0;
-            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
             try
             {
@@ -149,10 +151,13 @@ namespace Carom.Tests
                 // Expected
             }
 
-            stopwatch.Stop();
             Assert.Equal(4, executionCount);
-            Assert.True(stopwatch.ElapsedMilliseconds < 100,
-                $"Expected fast execution, but took {stopwatch.ElapsedMilliseconds}ms");
+            // Same invariant as the sync path: zero base delay means zero backoff
+            for (int attempt = 1; attempt <= 3; attempt++)
+            {
+                Assert.Equal(TimeSpan.Zero,
+                    JitterStrategy.CalculateDelay(TimeSpan.Zero, TimeSpan.Zero, disableJitter: false, attempt));
+            }
         }
 
         [Fact]

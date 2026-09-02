@@ -9,14 +9,20 @@ namespace Carom.Extensions
 {
     /// <summary>
     /// Extension methods for integrating Circuit Breaker (Cushion) with Carom retry logic.
+    /// Retry runs inside the circuit breaker: one logical call records one outcome,
+    /// the retry chain's final result, however many attempts it took. A call that
+    /// arrives at an open circuit fails fast and is never retried.
     /// </summary>
     public static class CaromCushionExtensions
     {
+        // Kept for nested breakers: an inner circuit opening mid-chain must stop
+        // the retries instead of backing off against it.
         internal static bool DefaultShouldBounce(Exception ex) => ex is not CircuitOpenException;
 
         /// <summary>
         /// Executes a synchronous shot with circuit breaker protection.
-        /// Retry logic wraps circuit breaker logic.
+        /// Circuit breaker logic wraps retry logic, so the sampling window sees
+        /// one entry per logical call, not one per attempt.
         /// </summary>
         public static T Shot<T>(
             Func<T> action,
@@ -26,12 +32,12 @@ namespace Carom.Extensions
             Func<Exception, bool>? shouldBounce = null,
             bool disableJitter = false)
         {
-            return global::Carom.Carom.Shot(
-                () => cushion.Execute(action),
+            return cushion.Execute(() => global::Carom.Carom.Shot(
+                action,
                 retries,
                 baseDelay,
                 shouldBounce ?? DefaultShouldBounce,
-                disableJitter);
+                disableJitter));
         }
 
         /// <summary>
@@ -39,17 +45,15 @@ namespace Carom.Extensions
         /// </summary>
         public static T Shot<T>(Func<T> action, Cushion cushion, Bounce bounce)
         {
-            return global::Carom.Carom.Shot(
-                () => cushion.Execute(action),
-                bounce.Retries,
-                bounce.BaseDelay,
-                bounce.ShouldBounce ?? DefaultShouldBounce,
-                shouldRetryResult: null,
-                bounce.DisableJitter);
+            // Pass the whole Bounce so every field, present and future, reaches core.
+            var effective = bounce.ShouldBounce == null ? bounce.When(DefaultShouldBounce) : bounce;
+            return cushion.Execute(() => global::Carom.Carom.Shot(action, effective));
         }
 
         /// <summary>
         /// Executes an asynchronous shot with circuit breaker protection.
+        /// Circuit breaker logic wraps retry logic, so the sampling window sees
+        /// one entry per logical call, not one per attempt.
         /// </summary>
         public static async Task<T> ShotAsync<T>(
             Func<Task<T>> action,
@@ -60,14 +64,14 @@ namespace Carom.Extensions
             bool disableJitter = false,
             CancellationToken ct = default)
         {
-            return await global::Carom.Carom.ShotAsync(
-                () => cushion.ExecuteAsync(action),
+            return await cushion.ExecuteAsync(() => global::Carom.Carom.ShotAsync(
+                action,
                 retries,
                 baseDelay,
                 timeout: null,
                 shouldBounce ?? DefaultShouldBounce,
                 disableJitter,
-                ct).ConfigureAwait(false);
+                ct)).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -79,15 +83,9 @@ namespace Carom.Extensions
             Bounce bounce,
             CancellationToken ct = default)
         {
-            return global::Carom.Carom.ShotAsync(
-                () => cushion.ExecuteAsync(action),
-                bounce.Retries,
-                bounce.BaseDelay,
-                bounce.Timeout,
-                bounce.ShouldBounce ?? DefaultShouldBounce,
-                shouldRetryResult: null,
-                bounce.DisableJitter,
-                ct);
+            // Pass the whole Bounce so every field, present and future, reaches core.
+            var effective = bounce.ShouldBounce == null ? bounce.When(DefaultShouldBounce) : bounce;
+            return cushion.ExecuteAsync(() => global::Carom.Carom.ShotAsync(action, effective, ct));
         }
     }
 }

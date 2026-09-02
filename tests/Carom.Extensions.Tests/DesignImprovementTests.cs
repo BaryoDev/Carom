@@ -26,7 +26,7 @@ namespace Carom.Extensions.Tests
             // Verify that CountWhere uses snapshot-based counting to prevent dirty reads
             var serviceKey = "ringbuffer-snapshot-" + Guid.NewGuid();
             var cushion = Cushion.ForService(serviceKey)
-                .OpenAfter(failures: 50, within: 100)
+                .OpenAfter(failures: 50, trackingLast: 100)
                 .HalfOpenAfter(TimeSpan.FromMinutes(1));
 
             var barrier = new Barrier(20);
@@ -75,7 +75,7 @@ namespace Carom.Extensions.Tests
             // Verify long-based index doesn't overflow in practical usage
             var serviceKey = "ringbuffer-overflow-" + Guid.NewGuid();
             var cushion = Cushion.ForService(serviceKey)
-                .OpenAfter(failures: 100000, within: 200000)
+                .OpenAfter(failures: 100000, trackingLast: 200000)
                 .HalfOpenAfter(TimeSpan.FromMinutes(1));
 
             var operationCount = 0;
@@ -384,7 +384,7 @@ namespace Carom.Extensions.Tests
                 {
                     // Mix of operations across all stores
                     var cushion = Cushion.ForService($"concurrent-{i % 5}")
-                        .OpenAfter(failures: 3, within: 5)
+                        .OpenAfter(failures: 3, trackingLast: 5)
                         .HalfOpenAfter(TimeSpan.FromSeconds(30));
 
                     var throttle = Throttle.ForService($"concurrent-{i % 5}")

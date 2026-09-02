@@ -73,18 +73,10 @@ namespace Carom.Extensions
         /// </remarks>
         private static void ThrowIfConflicting(string serviceKey, ThrottleStateEntry entry, Throttle config)
         {
-            if (entry.MaxRequests == config.MaxRequests
-                && entry.BurstSize == config.BurstSize
-                && entry.TimeWindow == config.TimeWindow)
-            {
-                return;
-            }
-
-            throw new InvalidOperationException(
-                $"Service '{serviceKey}' already registered with MaxRequests={entry.MaxRequests}, " +
-                $"BurstSize={entry.BurstSize}, TimeWindow={entry.TimeWindow}, " +
-                $"but requested MaxRequests={config.MaxRequests}, BurstSize={config.BurstSize}, " +
-                $"TimeWindow={config.TimeWindow}. Configuration changes for existing keys are not supported.");
+            StoreConflictHelper.ThrowIfConflicting("Service", serviceKey,
+                new ConfigField("MaxRequests", entry.MaxRequests, config.MaxRequests),
+                new ConfigField("BurstSize", entry.BurstSize, config.BurstSize),
+                new ConfigField("TimeWindow", entry.TimeWindow, config.TimeWindow));
         }
 
         /// <summary>

@@ -81,7 +81,9 @@ namespace Carom.EntityFramework
         /// </summary>
         private static bool IsTransientError(Exception ex)
         {
-            // For DbUpdateException, check the inner exception for transient indicators
+            // For DbUpdateException, check the inner exception for transient indicators.
+            // DbUpdateConcurrencyException follows this same path and stays non-transient:
+            // a blind retry replays the same stale values and hits the same conflict.
             if (ex is DbUpdateException dbEx)
             {
                 var inner = dbEx.InnerException;
@@ -96,6 +98,13 @@ namespace Carom.EntityFramework
 
         private static bool IsTransientDatabaseException(Exception ex)
         {
+            // Carom's own timeout is transient by type; its message says "timed out",
+            // which the fallback below does not match.
+            if (ex is TimeoutRejectedException)
+                return true;
+
+            // Provider exceptions like SqlException would need a provider package,
+            // so those are left to the message fallback.
             var message = ex.Message.ToLowerInvariant();
 
             return message.Contains("timeout") ||

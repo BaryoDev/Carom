@@ -82,6 +82,17 @@ namespace Carom.Extensions
         /// </summary>
         public int CountWhere(Func<T, bool> predicate)
         {
+            return CountWhere(predicate, static (item, p) => p(item));
+        }
+
+        /// <summary>
+        /// Counts items matching the predicate, passing caller state through so a
+        /// static lambda can be used without a closure allocation on the hot path.
+        /// Same seqlock read as above; a torn read of a multi-word element is
+        /// discarded by the version check and retried.
+        /// </summary>
+        public int CountWhere<TState>(TState state, Func<T, TState, bool> predicate)
+        {
             // Try seqlock-based read first
             for (int retry = 0; retry < MaxSeqlockRetries; retry++)
             {
@@ -113,7 +124,7 @@ namespace Carom.Extensions
                 {
                     var bufferIdx = (int)(((startIdx - count + i) % _buffer.Length + _buffer.Length) % _buffer.Length);
                     var item = _buffer[bufferIdx];
-                    if (predicate(item))
+                    if (predicate(item, state))
                         matched++;
                 }
 
@@ -128,13 +139,13 @@ namespace Carom.Extensions
             }
 
             // Fallback to lock after max retries
-            return CountWhereWithLock(predicate);
+            return CountWhereWithLock(state, predicate);
         }
 
         /// <summary>
         /// Fallback implementation using lock for high contention scenarios.
         /// </summary>
-        private int CountWhereWithLock(Func<T, bool> predicate)
+        private int CountWhereWithLock<TState>(TState state, Func<T, TState, bool> predicate)
         {
             // Must take the same lock as Add/Reset: a separate lock object would
             // not exclude concurrent writers, making this "consistent" fallback
@@ -151,7 +162,7 @@ namespace Carom.Extensions
                 for (int i = 0; i < count; i++)
                 {
                     var bufferIdx = (int)(((startIdx - count + i) % _buffer.Length + _buffer.Length) % _buffer.Length);
-                    if (predicate(_buffer[bufferIdx]))
+                    if (predicate(_buffer[bufferIdx], state))
                         matched++;
                 }
 

@@ -54,15 +54,14 @@ namespace Carom.Tests
         public void Smoke_Bounce_Configuration_Works()
         {
             var bounce = Bounce.Times(3)
-                .WithDelay(TimeSpan.FromMilliseconds(100))
-                .WithTimeout(TimeSpan.FromSeconds(10));
+                .WithDelay(TimeSpan.FromMilliseconds(100));
             
             var result = Carom.Shot(() => 42, bounce);
             Assert.Equal(42, result);
         }
 
         [Fact]
-        public void Smoke_Bounce_WithTimeout_Configuration_Works()
+        public async Task Smoke_Bounce_WithTimeout_Configuration_Works()
         {
             var bounce = Bounce.Times(3)
                 .WithDelay(TimeSpan.FromMilliseconds(100))
@@ -70,7 +69,8 @@ namespace Carom.Tests
             
             Assert.Equal(TimeSpan.FromSeconds(10), bounce.Timeout);
             
-            var result = Carom.Shot(() => 42, bounce);
+            // Issue #36: a timeout-carrying Bounce is async-only now
+            var result = await Carom.ShotAsync(() => Task.FromResult(42), bounce);
             Assert.Equal(42, result);
         }
 

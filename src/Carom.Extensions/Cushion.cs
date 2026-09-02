@@ -32,7 +32,28 @@ namespace Carom.Extensions
         /// </summary>
         public TimeSpan HalfOpenDelay { get; }
 
-        internal Cushion(string serviceKey, int failureThreshold, int samplingWindow, TimeSpan halfOpenDelay)
+        /// <summary>
+        /// How long a recorded outcome keeps counting toward the failure threshold.
+        /// Older outcomes are ignored, so a resolved incident ages out of the window.
+        /// </summary>
+        public TimeSpan SamplingDuration { get; }
+
+        /// <summary>
+        /// Predicate deciding whether an exception counts as a dependency failure.
+        /// Null means the default: everything except OperationCanceledException.
+        /// </summary>
+        public Func<Exception, bool>? ShouldTrip { get; }
+
+        // Caller-side exceptions must not open the circuit; cancellation is the
+        // caller giving up, not the dependency failing.
+        internal static bool DefaultShouldTrip(Exception ex) => ex is not OperationCanceledException;
+
+        // Test seam for the injectable monotonic clock (issue #8 pattern); null
+        // means Stopwatch.GetTimestamp. Not part of the public API.
+        internal Func<long>? Timestamp { get; }
+
+        internal Cushion(string serviceKey, int failureThreshold, int samplingWindow, TimeSpan halfOpenDelay,
+            TimeSpan samplingDuration, Func<Exception, bool>? shouldTrip, Func<long>? timestamp = null)
         {
             if (string.IsNullOrWhiteSpace(serviceKey))
                 throw new ArgumentException("Service key cannot be null or empty", nameof(serviceKey));
@@ -42,11 +63,16 @@ namespace Carom.Extensions
                 throw new ArgumentException("Sampling window must be >= failure threshold", nameof(samplingWindow));
             if (halfOpenDelay <= TimeSpan.Zero)
                 throw new ArgumentException("Half-open delay must be positive", nameof(halfOpenDelay));
+            if (samplingDuration <= TimeSpan.Zero)
+                throw new ArgumentException("Sampling duration must be positive", nameof(samplingDuration));
 
             ServiceKey = serviceKey;
             FailureThreshold = failureThreshold;
             SamplingWindow = samplingWindow;
             HalfOpenDelay = halfOpenDelay;
+            SamplingDuration = samplingDuration;
+            ShouldTrip = shouldTrip;
+            Timestamp = timestamp;
         }
 
         /// <summary>
@@ -80,9 +106,11 @@ namespace Carom.Extensions
                     state.RecordSuccess();
                     return result;
                 }
-                catch
+                catch (Exception ex)
                 {
-                    state.RecordFailureAndTryOpen(FailureThreshold, SamplingWindow);
+                    // Only exceptions the predicate blames on the dependency count.
+                    if ((ShouldTrip ?? DefaultShouldTrip)(ex))
+                        state.RecordFailureAndTryOpen(FailureThreshold);
                     throw;
                 }
             }
@@ -132,9 +160,18 @@ namespace Carom.Extensions
                 state.Close(); // Success! Close circuit
                 return result;
             }
-            catch
+            catch (Exception ex)
             {
-                state.Open(); // Failed, reopen
+                if ((ShouldTrip ?? DefaultShouldTrip)(ex))
+                {
+                    state.Open(); // Failed probe: dependency still bad, reopen
+                }
+                else
+                {
+                    // Excluded exception: inconclusive, so neither close nor count
+                    // a failure; back to Open with a restarted delay, never wedged.
+                    state.AbandonProbe();
+                }
                 throw;
             }
         }
@@ -156,9 +193,11 @@ namespace Carom.Extensions
                     state.RecordSuccess();
                     return result;
                 }
-                catch
+                catch (Exception ex)
                 {
-                    state.RecordFailureAndTryOpen(FailureThreshold, SamplingWindow);
+                    // Only exceptions the predicate blames on the dependency count.
+                    if ((ShouldTrip ?? DefaultShouldTrip)(ex))
+                        state.RecordFailureAndTryOpen(FailureThreshold);
                     throw;
                 }
             }
@@ -208,9 +247,17 @@ namespace Carom.Extensions
                 state.Close(); // Success! Close circuit
                 return result;
             }
-            catch
+            catch (Exception ex)
             {
-                state.Open(); // Failed, reopen
+                if ((ShouldTrip ?? DefaultShouldTrip)(ex))
+                {
+                    state.Open(); // Failed probe: dependency still bad, reopen
+                }
+                else
+                {
+                    // Excluded exception: inconclusive, see the sync path above.
+                    state.AbandonProbe();
+                }
                 throw;
             }
         }
@@ -225,6 +272,9 @@ namespace Carom.Extensions
         private int _failureThreshold = 5;
         private int _samplingWindow = 10;
         private TimeSpan _halfOpenDelay = TimeSpan.FromSeconds(30);
+        private TimeSpan _samplingDuration = TimeSpan.FromMinutes(1);
+        private Func<Exception, bool>? _shouldTrip;
+        private Func<long>? _timestamp;
 
         internal CushionBuilder(string serviceKey)
         {
@@ -232,14 +282,47 @@ namespace Carom.Extensions
         }
 
         /// <summary>
-        /// Sets the failure threshold and sampling window.
+        /// Sets the failure threshold and sampling window, both counts of calls.
+        /// The failure count is absolute, not a ratio: the circuit opens as soon as
+        /// <paramref name="failures"/> failures are recorded within the tracking
+        /// window, with no minimum call volume required. The window only bounds how
+        /// far back failures are counted; it has no say in when the circuit opens.
         /// </summary>
         /// <param name="failures">Number of failures to trigger circuit open.</param>
-        /// <param name="within">Size of sliding window to track.</param>
-        public CushionBuilder OpenAfter(int failures, int within)
+        /// <param name="trackingLast">Number of most recent calls the failures are counted over.</param>
+        public CushionBuilder OpenAfter(int failures, int trackingLast)
         {
             _failureThreshold = failures;
-            _samplingWindow = within;
+            _samplingWindow = trackingLast;
+            return this;
+        }
+
+        /// <summary>
+        /// Sets how long a recorded outcome keeps counting toward the threshold.
+        /// Default: one minute. Older outcomes are ignored when counting failures.
+        /// </summary>
+        public CushionBuilder WithinLast(TimeSpan duration)
+        {
+            _samplingDuration = duration;
+            return this;
+        }
+
+        /// <summary>
+        /// Sets which exceptions count as dependency failures. Exceptions the
+        /// predicate rejects are rethrown without touching the circuit, so a bug in
+        /// calling code cannot open the circuit for a healthy dependency.
+        /// Default: everything except OperationCanceledException.
+        /// </summary>
+        public CushionBuilder When(Func<Exception, bool> predicate)
+        {
+            _shouldTrip = predicate ?? throw new ArgumentNullException(nameof(predicate));
+            return this;
+        }
+
+        // Injects the monotonic clock so time-dependent tests need no sleeping.
+        internal CushionBuilder WithTimestamp(Func<long> timestamp)
+        {
+            _timestamp = timestamp;
             return this;
         }
 
@@ -249,7 +332,8 @@ namespace Carom.Extensions
         public Cushion HalfOpenAfter(TimeSpan delay)
         {
             _halfOpenDelay = delay;
-            return new Cushion(_serviceKey, _failureThreshold, _samplingWindow, _halfOpenDelay);
+            return new Cushion(_serviceKey, _failureThreshold, _samplingWindow, _halfOpenDelay,
+                _samplingDuration, _shouldTrip, _timestamp);
         }
     }
 }

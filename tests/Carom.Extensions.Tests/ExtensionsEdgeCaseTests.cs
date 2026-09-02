@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
@@ -217,23 +218,70 @@ namespace Carom.Extensions.Tests
                 .WithMaxConcurrency(50)
                 .Build();
 
+            var active = 0;
+            var peak = 0;
+            var release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            using var settled = new CountdownEvent(100);
+
             var tasks = new List<Task<int>>();
             for (int i = 0; i < 100; i++)
             {
                 int taskId = i;
-                tasks.Add(CaromCompartmentExtensions.ShotAsync(
-                    async () =>
+                tasks.Add(Task.Run(async () =>
+                {
+                    try
                     {
-                        await Task.Delay(10);
-                        return taskId;
-                    },
-                    compartment,
-                    retries: 5,
-                    shouldBounce: _ => true));
+                        return await CaromCompartmentExtensions.ShotAsync(
+                            async () =>
+                            {
+                                var now = Interlocked.Increment(ref active);
+                                // Track peak observed concurrency
+                                int seen;
+                                while (now > (seen = Volatile.Read(ref peak)))
+                                {
+                                    Interlocked.CompareExchange(ref peak, now, seen);
+                                }
+                                settled.Signal();
+                                await release.Task;
+                                Interlocked.Decrement(ref active);
+                                return taskId;
+                            },
+                            compartment,
+                            retries: 0);
+                    }
+                    catch (CompartmentFullException)
+                    {
+                        settled.Signal();
+                        return -1;
+                    }
+                }));
             }
 
+            // No permit is released before the gate opens, so every attempt either
+            // holds one of the 50 slots or was shed; load cannot change the split.
+            Assert.True(settled.Wait(TimeSpan.FromMinutes(2)), "attempts did not all settle");
+            Assert.Equal(50, Volatile.Read(ref active));
+            release.SetResult(true);
+
             var results = await Task.WhenAll(tasks);
-            Assert.Equal(100, results.Length);
+
+            var completed = results.Count(r => r >= 0);
+            var rejected = results.Count(r => r < 0);
+            Assert.Equal(50, completed);
+            Assert.Equal(50, rejected);
+            Assert.True(Volatile.Read(ref peak) <= 50,
+                $"observed {peak} concurrent executions, above MaxConcurrency 50");
+            Assert.Equal(0, Volatile.Read(ref active)); // every entry was released
+
+            // Shed work goes through once slots are free again
+            for (int i = 0; i < 50; i++)
+            {
+                var again = await CaromCompartmentExtensions.ShotAsync(
+                    async () => { await Task.Yield(); return i; },
+                    compartment,
+                    retries: 0);
+                Assert.Equal(i, again);
+            }
         }
 
         #endregion

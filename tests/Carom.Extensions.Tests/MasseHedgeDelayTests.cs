@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Carom.Extensions;
@@ -22,31 +23,37 @@ namespace Carom.Extensions.Tests
         [Fact]
         public async Task Hedging_waits_the_hedge_delay_between_unsatisfactory_results()
         {
+            var hedgeDelay = TimeSpan.FromMilliseconds(250);
             var started = 0;
-            var secondMayStart = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var startTimestamps = new long[3];
 
             var config = Masse.WithAttempts(3)
-                .After(TimeSpan.FromMilliseconds(250))
+                .After(hedgeDelay)
                 .When(r => (string?)r == "stale");
 
-            var run = CaromMasseExtensions.ShotWithHedgingAsync<string>(async ct =>
+            var result = await CaromMasseExtensions.ShotWithHedgingAsync<string>(async ct =>
             {
+                // Runs synchronously inside the launch, before the next delay starts
                 var n = Interlocked.Increment(ref started);
-                if (n >= 2) await secondMayStart.Task;
+                startTimestamps[n - 1] = Stopwatch.GetTimestamp();
                 await Task.Yield();
                 return "stale";
             }, config);
 
-            // The first attempt returns "stale" almost instantly. The second must not
-            // launch until the 250ms hedge delay has elapsed, so right now there is one.
-            await Task.Yield();
-            Assert.Equal(1, Volatile.Read(ref started));
-
-            secondMayStart.SetResult(true);
-            var result = await run;
-
             Assert.Equal("stale", result); // the last result, not an empty AggregateException
             Assert.Equal(3, Volatile.Read(ref started));
+
+            // Every attempt returns "stale" almost instantly, so each later launch is
+            // gated only by the hedge delay. A lower bound on the gap between launches
+            // cannot flake under load; the issue #4 regression launched follow-ups with
+            // no gap at all. Small margin for timer quantization at the boundary.
+            var minGapTicks = (long)((hedgeDelay.TotalSeconds - 0.03) * Stopwatch.Frequency);
+            for (int i = 1; i < 3; i++)
+            {
+                var gapMs = (startTimestamps[i] - startTimestamps[i - 1]) * 1000.0 / Stopwatch.Frequency;
+                Assert.True(startTimestamps[i] - startTimestamps[i - 1] >= minGapTicks,
+                    $"attempt {i + 1} launched {gapMs:F1}ms after attempt {i}, inside the hedge delay");
+            }
         }
 
         [Fact]

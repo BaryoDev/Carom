@@ -7,7 +7,7 @@
 
     <!-- Package Metadata -->
     <PackageId>Carom.Extensions</PackageId>
-    <Version>1.7.0</Version>
+    <Version>2.0.0</Version>
     <Authors>Baryo.Dev</Authors>
     <Company>Baryo.Dev</Company>
     <Description>Advanced resilience patterns for Carom: Circuit Breaker, Fallback, Bulkhead, and Rate Limiting. Zero external dependencies. Lock-free implementations for maximum performance. Extends Carom core with production-grade patterns.</Description>
@@ -17,6 +17,7 @@
     <PackageProjectUrl>https://github.com/BaryoDev/Carom</PackageProjectUrl>
     <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>logo.png</PackageIcon>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <Copyright>Copyright © 2025 Baryo.Dev</Copyright>
   </PropertyGroup>
@@ -36,5 +37,6 @@
 
   <ItemGroup>
     <None Include="../../README.md" Pack="true" PackagePath="\" />
+    <None Include="../../assets/logo.png" Pack="true" PackagePath="\" />
   </ItemGroup>
 </Project>

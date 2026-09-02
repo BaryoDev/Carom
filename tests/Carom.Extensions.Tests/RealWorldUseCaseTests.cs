@@ -25,7 +25,7 @@ namespace Carom.Extensions.Tests
         {
             // Scenario: Black Friday surge - 1000 concurrent payment attempts
             var cushion = Cushion.ForService("payment-gateway-" + Guid.NewGuid())
-                .OpenAfter(failures: 10, within: 50)
+                .OpenAfter(failures: 10, trackingLast: 50)
                 .HalfOpenAfter(TimeSpan.FromMilliseconds(500));
 
             var successfulPayments = 0;
@@ -76,7 +76,7 @@ namespace Carom.Extensions.Tests
         {
             // Scenario: Payment provider goes down completely
             var cushion = Cushion.ForService("payment-outage-" + Guid.NewGuid())
-                .OpenAfter(failures: 3, within: 5)
+                .OpenAfter(failures: 3, trackingLast: 5)
                 .HalfOpenAfter(TimeSpan.FromSeconds(1));
 
             var callsToProvider = 0;
@@ -262,12 +262,16 @@ namespace Carom.Extensions.Tests
             }
             stopwatch.Stop();
 
-            // Should only allow burst + some refill during test execution
-            // With 100 burst and 200 requests over ~100-500ms, expect most to be throttled
-            Assert.True(allowed <= 200,
-                $"Expected most requests to be throttled, got {allowed} allowed");
-            Assert.True(throttled >= 1,
-                $"Expected some throttling, got {throttled}");
+            Assert.Equal(200, allowed + throttled);
+            // The burst always fits: the loop is sequential and refill only adds tokens
+            Assert.True(allowed >= 100,
+                $"Expected the 100-token burst to be admitted, got {allowed}");
+            // Refill grows with how long the loop actually ran, so the bound must come
+            // from measured time. A fixed "some throttling" assertion fails a correct
+            // limiter on a loaded runner where the loop takes over a second.
+            var refillBudget = (int)Math.Ceiling(stopwatch.Elapsed.TotalSeconds * 100) + 10;
+            Assert.True(allowed <= 100 + refillBudget,
+                $"Expected at most burst + refill for {stopwatch.ElapsedMilliseconds}ms, got {allowed}");
         }
 
         [Fact]
@@ -327,7 +331,7 @@ namespace Carom.Extensions.Tests
             // If C fails, B should circuit break, A should see failures
 
             var serviceB = Cushion.ForService("service-b-" + Guid.NewGuid())
-                .OpenAfter(failures: 2, within: 5)
+                .OpenAfter(failures: 2, trackingLast: 5)
                 .HalfOpenAfter(TimeSpan.FromSeconds(5));
 
             var totalFailures = 0;
@@ -376,7 +380,7 @@ namespace Carom.Extensions.Tests
         {
             // Scenario: Primary service fails, fallback to cache
             var primaryService = Cushion.ForService("primary-" + Guid.NewGuid())
-                .OpenAfter(failures: 2, within: 3)
+                .OpenAfter(failures: 2, trackingLast: 3)
                 .HalfOpenAfter(TimeSpan.FromSeconds(10));
 
             var cachedValue = "cached-response";
@@ -420,7 +424,7 @@ namespace Carom.Extensions.Tests
         {
             // Scenario: 100 concurrent threads hammering circuit breaker
             var cushion = Cushion.ForService("stress-test-" + Guid.NewGuid())
-                .OpenAfter(failures: 50, within: 100)
+                .OpenAfter(failures: 50, trackingLast: 100)
                 .HalfOpenAfter(TimeSpan.FromMilliseconds(100));
 
             var results = new ConcurrentBag<string>();
@@ -588,7 +592,7 @@ namespace Carom.Extensions.Tests
         {
             // Scenario: Service goes down and then recovers
             var cushion = Cushion.ForService("recovery-test-" + Guid.NewGuid())
-                .OpenAfter(failures: 2, within: 3)
+                .OpenAfter(failures: 2, trackingLast: 3)
                 .HalfOpenAfter(TimeSpan.FromMilliseconds(100));
 
             var serviceAvailable = false;
@@ -698,7 +702,7 @@ namespace Carom.Extensions.Tests
                 .Build();
 
             var cushion = Cushion.ForService("all-patterns-service-" + Guid.NewGuid())
-                .OpenAfter(failures: 3, within: 10)
+                .OpenAfter(failures: 3, trackingLast: 10)
                 .HalfOpenAfter(TimeSpan.FromSeconds(5));
 
             var results = new ConcurrentDictionary<string, int>();
@@ -767,7 +771,7 @@ namespace Carom.Extensions.Tests
         {
             // Scenario: Circuit breaker rapidly transitioning between states
             var cushion = Cushion.ForService("rapid-transition-" + Guid.NewGuid())
-                .OpenAfter(failures: 1, within: 2)
+                .OpenAfter(failures: 1, trackingLast: 2)
                 .HalfOpenAfter(TimeSpan.FromMilliseconds(50));
 
             var stateChanges = new ConcurrentBag<string>();

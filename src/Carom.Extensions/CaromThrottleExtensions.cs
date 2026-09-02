@@ -38,13 +38,9 @@ namespace Carom.Extensions
         /// </summary>
         public static T Shot<T>(Func<T> action, Throttle throttle, Bounce bounce)
         {
-            return global::Carom.Carom.Shot(
-                () => throttle.Execute(action),
-                bounce.Retries,
-                bounce.BaseDelay,
-                bounce.ShouldBounce ?? DefaultShouldBounce,
-                shouldRetryResult: null,
-                bounce.DisableJitter);
+            // Pass the whole Bounce so every field, present and future, reaches core.
+            var effective = bounce.ShouldBounce == null ? bounce.When(DefaultShouldBounce) : bounce;
+            return global::Carom.Carom.Shot(() => throttle.Execute(action), effective);
         }
 
         /// <summary>
@@ -78,15 +74,9 @@ namespace Carom.Extensions
             Bounce bounce,
             CancellationToken ct = default)
         {
-            return global::Carom.Carom.ShotAsync(
-                () => throttle.ExecuteAsync(action),
-                bounce.Retries,
-                bounce.BaseDelay,
-                bounce.Timeout,
-                bounce.ShouldBounce ?? DefaultShouldBounce,
-                shouldRetryResult: null,
-                bounce.DisableJitter,
-                ct);
+            // Pass the whole Bounce so every field, present and future, reaches core.
+            var effective = bounce.ShouldBounce == null ? bounce.When(DefaultShouldBounce) : bounce;
+            return global::Carom.Carom.ShotAsync(() => throttle.ExecuteAsync(action), effective, ct);
         }
     }
 }

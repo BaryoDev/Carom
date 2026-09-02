@@ -32,10 +32,7 @@ namespace Carom.Extensions
             // Try to get existing entry first
             if (_states.TryGetValue(resourceKey, out var existingEntry))
             {
-                if (existingEntry.MaxConcurrency != config.MaxConcurrency || existingEntry.QueueDepth != config.QueueDepth)
-                    throw new InvalidOperationException(
-                        $"Resource '{resourceKey}' already registered with MaxConcurrency={existingEntry.MaxConcurrency}, QueueDepth={existingEntry.QueueDepth}, " +
-                        $"but requested MaxConcurrency={config.MaxConcurrency}, QueueDepth={config.QueueDepth}. Configuration changes for existing keys are not supported.");
+                ThrowIfConflicting(resourceKey, existingEntry, config);
                 existingEntry.Touch();
                 return existingEntry.State;
             }
@@ -51,6 +48,10 @@ namespace Carom.Extensions
             if (entry != newEntry)
             {
                 newState.Dispose();
+
+                // A lost GetOrAdd race hands back someone else's entry, so the loser must be
+                // validated too or a conflicting registration passes silently under load.
+                ThrowIfConflicting(resourceKey, entry, config);
             }
 
             // Check if we need to evict
@@ -61,6 +62,17 @@ namespace Carom.Extensions
 
             entry.Touch();
             return entry.State;
+        }
+
+        /// <summary>
+        /// Rejects a registration that disagrees with the entry already holding the key.
+        /// Called from both the sequential and the lost-race path so the rule cannot drift.
+        /// </summary>
+        private static void ThrowIfConflicting(string resourceKey, CompartmentStateEntry entry, Compartment config)
+        {
+            StoreConflictHelper.ThrowIfConflicting("Resource", resourceKey,
+                new ConfigField("MaxConcurrency", entry.MaxConcurrency, config.MaxConcurrency),
+                new ConfigField("QueueDepth", entry.QueueDepth, config.QueueDepth));
         }
 
         /// <summary>

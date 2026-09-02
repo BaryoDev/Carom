@@ -5,11 +5,13 @@ namespace Carom
     {
         public System.TimeSpan BaseDelay { get; }
         public bool DisableJitter { get; }
+        public System.TimeSpan MaxDelay { get; }
         public int Retries { get; }
         public System.Func<System.Exception, bool>? ShouldBounce { get; }
         public System.TimeSpan? Timeout { get; }
         public Carom.Bounce When(System.Func<System.Exception, bool> predicate) { }
         public Carom.Bounce WithDelay(System.TimeSpan delay) { }
+        public Carom.Bounce WithMaxDelay(System.TimeSpan maxDelay) { }
         public Carom.Bounce WithTimeout(System.TimeSpan timeout) { }
         public Carom.Bounce WithoutJitter() { }
         public static Carom.Bounce<T> For<T>(int retries = 3) { }
@@ -21,6 +23,7 @@ namespace Carom
     {
         public System.TimeSpan BaseDelay { get; }
         public bool DisableJitter { get; }
+        public System.TimeSpan MaxDelay { get; }
         public int Retries { get; }
         public System.Func<System.Exception, bool>? ShouldBounce { get; }
         public System.Func<T, bool>? ShouldRetryResult { get; }
@@ -28,6 +31,7 @@ namespace Carom
         public Carom.Bounce<T> When(System.Func<System.Exception, bool> predicate) { }
         public Carom.Bounce<T> WhenResult(System.Func<T, bool> predicate) { }
         public Carom.Bounce<T> WithDelay(System.TimeSpan delay) { }
+        public Carom.Bounce<T> WithMaxDelay(System.TimeSpan maxDelay) { }
         public Carom.Bounce<T> WithTimeout(System.TimeSpan timeout) { }
         public Carom.Bounce<T> WithoutJitter() { }
         public static Carom.Bounce<T> On<TException>(int retries = 3)
@@ -43,11 +47,17 @@ namespace Carom
         public static T Shot<T>(System.Func<T> action, int retries = 3, System.TimeSpan? baseDelay = default, System.Func<System.Exception, bool>? shouldBounce = null, bool disableJitter = false) { }
         public static T Shot<T>(System.Func<T> action, int retries, System.TimeSpan? baseDelay, System.Func<System.Exception, bool>? shouldBounce, System.Func<T, bool>? shouldRetryResult, bool disableJitter = false) { }
         public static System.Threading.Tasks.Task ShotAsync(System.Func<System.Threading.Tasks.Task> action, Carom.Bounce bounce, System.Threading.CancellationToken ct = default) { }
+        public static System.Threading.Tasks.Task ShotAsync(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task> action, Carom.Bounce bounce, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task ShotAsync(System.Func<System.Threading.Tasks.Task> action, int retries = 3, System.TimeSpan? baseDelay = default, System.TimeSpan? timeout = default, System.Func<System.Exception, bool>? shouldBounce = null, bool disableJitter = false, System.Threading.CancellationToken ct = default) { }
+        public static System.Threading.Tasks.Task ShotAsync(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task> action, int retries = 3, System.TimeSpan? baseDelay = default, System.TimeSpan? timeout = default, System.Func<System.Exception, bool>? shouldBounce = null, bool disableJitter = false, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task<T> ShotAsync<T>(System.Func<System.Threading.Tasks.Task<T>> action, Carom.Bounce bounce, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task<T> ShotAsync<T>(System.Func<System.Threading.Tasks.Task<T>> action, Carom.Bounce<T> bounce, System.Threading.CancellationToken ct = default) { }
+        public static System.Threading.Tasks.Task<T> ShotAsync<T>(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<T>> action, Carom.Bounce bounce, System.Threading.CancellationToken ct = default) { }
+        public static System.Threading.Tasks.Task<T> ShotAsync<T>(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<T>> action, Carom.Bounce<T> bounce, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task<T> ShotAsync<T>(System.Func<System.Threading.Tasks.Task<T>> action, int retries = 3, System.TimeSpan? baseDelay = default, System.TimeSpan? timeout = default, System.Func<System.Exception, bool>? shouldBounce = null, bool disableJitter = false, System.Threading.CancellationToken ct = default) { }
+        public static System.Threading.Tasks.Task<T> ShotAsync<T>(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<T>> action, int retries = 3, System.TimeSpan? baseDelay = default, System.TimeSpan? timeout = default, System.Func<System.Exception, bool>? shouldBounce = null, bool disableJitter = false, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task<T> ShotAsync<T>(System.Func<System.Threading.Tasks.Task<T>> action, int retries, System.TimeSpan? baseDelay, System.TimeSpan? timeout, System.Func<System.Exception, bool>? shouldBounce, System.Func<T, bool>? shouldRetryResult, bool disableJitter = false, System.Threading.CancellationToken ct = default) { }
+        public static System.Threading.Tasks.Task<T> ShotAsync<T>(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<T>> action, int retries, System.TimeSpan? baseDelay, System.TimeSpan? timeout, System.Func<System.Exception, bool>? shouldBounce, System.Func<T, bool>? shouldRetryResult, bool disableJitter = false, System.Threading.CancellationToken ct = default) { }
     }
     public class TimeoutRejectedException : System.OperationCanceledException
     {

@@ -31,7 +31,7 @@ namespace Carom.Extensions.Tests
         {
             key = "bounce-overload-" + Guid.NewGuid();
             var cushion = Cushion.ForService(key)
-                .OpenAfter(failures: 1, within: 1)
+                .OpenAfter(failures: 1, trackingLast: 1)
                 .HalfOpenAfter(TimeSpan.FromMinutes(10)); // cannot drift to half-open mid-test
 
             Assert.Throws<InvalidOperationException>(() =>
@@ -128,10 +128,40 @@ namespace Carom.Extensions.Tests
         [Fact]
         public void A_caller_supplied_predicate_still_wins_over_the_default()
         {
+            // Since CAR-03 the retries run inside the breaker, so the caller's
+            // predicate governs the retry chain there. One refusing the thrown type
+            // must stop retries the default would have run.
+            var key = "bounce-overload-" + Guid.NewGuid();
+            var cushion = Cushion.ForService(key)
+                .OpenAfter(failures: 5, trackingLast: 5)
+                .HalfOpenAfter(TimeSpan.FromMinutes(10));
+
+            var bounce = Bounce.On<TimeoutException>(retries: 2)
+                .WithDelay(BaseDelay).WithoutJitter();
+
+            var attempts = 0;
+            var sw = Stopwatch.StartNew();
+            Assert.Throws<InvalidOperationException>(() =>
+                CaromCushionExtensions.Shot<int>(() =>
+                {
+                    attempts++;
+                    throw new InvalidOperationException("boom");
+                }, cushion, bounce));
+            sw.Stop();
+
+            Assert.Equal(1, attempts);
+            Assert.True(sw.Elapsed < FastFailCeiling,
+                $"caller's predicate was ignored: backoff ran ({sw.ElapsedMilliseconds}ms)");
+        }
+
+        [Fact]
+        public void An_open_circuit_fails_fast_even_when_the_predicate_opts_in()
+        {
+            // Since CAR-03 the retries sit inside the breaker, so a rejection from
+            // an open circuit can never reach a retry loop. Even an explicit
+            // opt-in predicate cannot back off against it.
             var cushion = OpenCushion(out _);
 
-            // The caller explicitly asks to retry through the open circuit. One retry
-            // without jitter waits base*2 = 600ms, which fail-fast would skip.
             var bounce = Bounce.On<CircuitOpenException>(retries: 1)
                 .WithDelay(BaseDelay).WithoutJitter();
 
@@ -140,8 +170,8 @@ namespace Carom.Extensions.Tests
                 CaromCushionExtensions.Shot(() => 1, cushion, bounce));
             sw.Stop();
 
-            Assert.True(sw.Elapsed >= TimeSpan.FromMilliseconds(500),
-                $"caller's predicate was ignored: no backoff ran ({sw.ElapsedMilliseconds}ms)");
+            Assert.True(sw.Elapsed < FastFailCeiling,
+                $"expected fail-fast, spent {sw.ElapsedMilliseconds}ms backing off against an open circuit");
         }
 
         [Theory]
