@@ -61,12 +61,16 @@ namespace Carom.Tests
         {
             // Carom.Tests does not reference Carom.Extensions, so check the src build output; a solution-level build always produces it.
             var extensionsBin = Path.Combine(FindRepoRoot(), "src", "Carom.Extensions", "bin");
-            if (!Directory.Exists(extensionsBin))
-            {
-                return;
-            }
+            Assert.True(Directory.Exists(extensionsBin),
+                $"No build output at {extensionsBin}, so the Carom.Extensions size bound cannot be measured. " +
+                "Build the solution (dotnet build Carom.sln), not just Carom.Tests, and rerun. " +
+                "A gate that passes when it cannot measure is not a gate.");
 
             var built = Directory.GetFiles(extensionsBin, "Carom.Extensions.dll", SearchOption.AllDirectories);
+            Assert.True(built.Length > 0,
+                $"No Carom.Extensions.dll found under {extensionsBin}, so the size bound cannot be measured. " +
+                "Build the solution (dotnet build Carom.sln), not just Carom.Tests, and rerun.");
+
             foreach (var path in built)
             {
                 long size = new FileInfo(path).Length;
