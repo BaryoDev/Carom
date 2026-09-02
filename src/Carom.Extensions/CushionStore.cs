@@ -42,7 +42,7 @@ namespace Carom.Extensions
             }
 
             // Create new entry
-            var newState = new CushionState(config.SamplingWindow, timestamp: null, samplingDuration: config.SamplingDuration);
+            var newState = new CushionState(config.SamplingWindow, config.Timestamp, config.SamplingDuration);
             var newEntry = new CushionStateEntry(newState, config.SamplingWindow);
 
             // Try to add, handling race condition

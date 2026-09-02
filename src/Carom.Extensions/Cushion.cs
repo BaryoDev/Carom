@@ -48,8 +48,12 @@ namespace Carom.Extensions
         // caller giving up, not the dependency failing.
         internal static bool DefaultShouldTrip(Exception ex) => ex is not OperationCanceledException;
 
+        // Test seam for the injectable monotonic clock (issue #8 pattern); null
+        // means Stopwatch.GetTimestamp. Not part of the public API.
+        internal Func<long>? Timestamp { get; }
+
         internal Cushion(string serviceKey, int failureThreshold, int samplingWindow, TimeSpan halfOpenDelay,
-            TimeSpan samplingDuration, Func<Exception, bool>? shouldTrip)
+            TimeSpan samplingDuration, Func<Exception, bool>? shouldTrip, Func<long>? timestamp = null)
         {
             if (string.IsNullOrWhiteSpace(serviceKey))
                 throw new ArgumentException("Service key cannot be null or empty", nameof(serviceKey));
@@ -68,6 +72,7 @@ namespace Carom.Extensions
             HalfOpenDelay = halfOpenDelay;
             SamplingDuration = samplingDuration;
             ShouldTrip = shouldTrip;
+            Timestamp = timestamp;
         }
 
         /// <summary>
@@ -155,9 +160,18 @@ namespace Carom.Extensions
                 state.Close(); // Success! Close circuit
                 return result;
             }
-            catch
+            catch (Exception ex)
             {
-                state.Open(); // Failed, reopen
+                if ((ShouldTrip ?? DefaultShouldTrip)(ex))
+                {
+                    state.Open(); // Failed probe: dependency still bad, reopen
+                }
+                else
+                {
+                    // Excluded exception: inconclusive, so neither close nor count
+                    // a failure; back to Open with a restarted delay, never wedged.
+                    state.AbandonProbe();
+                }
                 throw;
             }
         }
@@ -233,9 +247,17 @@ namespace Carom.Extensions
                 state.Close(); // Success! Close circuit
                 return result;
             }
-            catch
+            catch (Exception ex)
             {
-                state.Open(); // Failed, reopen
+                if ((ShouldTrip ?? DefaultShouldTrip)(ex))
+                {
+                    state.Open(); // Failed probe: dependency still bad, reopen
+                }
+                else
+                {
+                    // Excluded exception: inconclusive, see the sync path above.
+                    state.AbandonProbe();
+                }
                 throw;
             }
         }
@@ -252,6 +274,7 @@ namespace Carom.Extensions
         private TimeSpan _halfOpenDelay = TimeSpan.FromSeconds(30);
         private TimeSpan _samplingDuration = TimeSpan.FromMinutes(1);
         private Func<Exception, bool>? _shouldTrip;
+        private Func<long>? _timestamp;
 
         internal CushionBuilder(string serviceKey)
         {
@@ -296,6 +319,13 @@ namespace Carom.Extensions
             return this;
         }
 
+        // Injects the monotonic clock so time-dependent tests need no sleeping.
+        internal CushionBuilder WithTimestamp(Func<long> timestamp)
+        {
+            _timestamp = timestamp;
+            return this;
+        }
+
         /// <summary>
         /// Sets the half-open delay and builds the Cushion.
         /// </summary>
@@ -303,7 +333,7 @@ namespace Carom.Extensions
         {
             _halfOpenDelay = delay;
             return new Cushion(_serviceKey, _failureThreshold, _samplingWindow, _halfOpenDelay,
-                _samplingDuration, _shouldTrip);
+                _samplingDuration, _shouldTrip, _timestamp);
         }
     }
 }

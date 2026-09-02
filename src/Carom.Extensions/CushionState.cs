@@ -132,6 +132,14 @@ namespace Carom.Extensions
         }
 
         /// <summary>
+        /// Returns an inconclusive half-open probe to Open. Same transition as
+        /// Open: MarkOpened restarts the delay so the next probe waits the full
+        /// delay, and leaving HalfOpen keeps the single-winner property sound.
+        /// Named apart because nothing failed; the probe just did not run.
+        /// </summary>
+        public void AbandonProbe() => Open();
+
+        /// <summary>
         /// Closes the circuit (reset to normal operation).
         /// </summary>
         public void Close()
