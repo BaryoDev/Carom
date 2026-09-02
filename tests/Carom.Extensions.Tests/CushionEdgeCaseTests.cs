@@ -240,7 +240,8 @@ namespace Carom.Extensions.Tests
         [Fact]
         public async Task Cushion_HalfOpenState_FailureReopensCircuit()
         {
-            var cushion = Cushion.ForService("half-open-fail-" + Guid.NewGuid())
+            var key = "half-open-fail-" + Guid.NewGuid();
+            var cushion = Cushion.ForService(key)
                 .OpenAfter(2, 2)
                 .HalfOpenAfter(TimeSpan.FromMilliseconds(50));
 
@@ -276,9 +277,10 @@ namespace Carom.Extensions.Tests
                 // Expected
             }
 
-            // Circuit should be open again
-            Assert.Throws<CircuitOpenException>(() =>
-                CaromCushionExtensions.Shot(() => 42, cushion, retries: 0));
+            // Circuit should be open again. Checked via state, not another call:
+            // under load the 50ms half-open delay can elapse again before a probe
+            // call runs, which made the behavioural assertion flaky.
+            Assert.Equal(CircuitState.Open, Cushion.GetState(key));
         }
 
         #endregion

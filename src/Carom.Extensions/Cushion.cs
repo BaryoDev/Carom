@@ -101,9 +101,11 @@ namespace Carom.Extensions
                     state.RecordSuccess();
                     return result;
                 }
-                catch
+                catch (Exception ex)
                 {
-                    state.RecordFailureAndTryOpen(FailureThreshold);
+                    // Only exceptions the predicate blames on the dependency count.
+                    if ((ShouldTrip ?? DefaultShouldTrip)(ex))
+                        state.RecordFailureAndTryOpen(FailureThreshold);
                     throw;
                 }
             }
@@ -177,9 +179,11 @@ namespace Carom.Extensions
                     state.RecordSuccess();
                     return result;
                 }
-                catch
+                catch (Exception ex)
                 {
-                    state.RecordFailureAndTryOpen(FailureThreshold);
+                    // Only exceptions the predicate blames on the dependency count.
+                    if ((ShouldTrip ?? DefaultShouldTrip)(ex))
+                        state.RecordFailureAndTryOpen(FailureThreshold);
                     throw;
                 }
             }
