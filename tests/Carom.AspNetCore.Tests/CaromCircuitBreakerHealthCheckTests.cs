@@ -108,8 +108,15 @@ public class CaromCircuitBreakerHealthCheckTests
 
         // If the probe loses the admission check it fails fast with CircuitOpenException;
         // elapsed time only grows, so retrying the call terminates without sleeping.
+        // The attempt cap keeps a circuit that never admits from hanging the suite.
+        const int maxAdmissionAttempts = 100;
+        var admissionAttempts = 0;
         while (probe == null)
         {
+            admissionAttempts++;
+            Assert.True(admissionAttempts <= maxAdmissionAttempts,
+                $"the circuit never admitted a half-open probe in {maxAdmissionAttempts} attempts; " +
+                "every candidate failed fast with CircuitOpenException");
             var candidate = CaromCushionExtensions.ShotAsync(
                 async () =>
                 {
