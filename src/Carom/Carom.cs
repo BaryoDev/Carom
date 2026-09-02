@@ -92,7 +92,7 @@ namespace Carom
                     lastException = ex;
 
                     // Check if we should retry this exception
-                    // A cancelled operation is never retried unless shouldBounce opts in
+                    // A cancelled operation is never retried
                     if (!ShouldRetryException(ex, shouldBounce))
                     {
                         throw;
@@ -393,7 +393,7 @@ namespace Carom
                     lastException = ex;
 
                     // Check if we should retry this exception
-                    // A cancelled operation is never retried unless shouldBounce opts in
+                    // A cancelled operation is never retried
                     if (!ShouldRetryException(ex, shouldBounce))
                     {
                         throw;
@@ -553,13 +553,13 @@ namespace Carom
 
         /// <summary>
         /// Decides whether a caught exception is retried. An OperationCanceledException
-        /// means the operation reported itself cancelled and is never retried unless the
-        /// caller's shouldBounce predicate explicitly returns true for it.
+        /// means the operation reported itself cancelled and is never retried; the
+        /// shouldBounce predicate can only narrow what is retried, never widen it.
         /// </summary>
         private static bool ShouldRetryException(Exception ex, Func<Exception, bool>? shouldBounce)
         {
-            if (shouldBounce != null) return shouldBounce(ex);
-            return !(ex is OperationCanceledException);
+            if (ex is OperationCanceledException) return false;
+            return shouldBounce == null || shouldBounce(ex);
         }
 
         /// <summary>
