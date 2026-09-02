@@ -76,15 +76,19 @@ namespace Carom.Extensions
     {
         public int FailureThreshold { get; }
         public System.TimeSpan HalfOpenDelay { get; }
+        public System.TimeSpan SamplingDuration { get; }
         public int SamplingWindow { get; }
         public string ServiceKey { get; }
+        public System.Func<System.Exception, bool>? ShouldTrip { get; }
         public static Carom.Extensions.CushionBuilder ForService(string serviceKey) { }
         public static Carom.Extensions.CircuitState? GetState(string serviceKey) { }
     }
     public class CushionBuilder
     {
         public Carom.Extensions.Cushion HalfOpenAfter(System.TimeSpan delay) { }
-        public Carom.Extensions.CushionBuilder OpenAfter(int failures, int within) { }
+        public Carom.Extensions.CushionBuilder OpenAfter(int failures, int trackingLast) { }
+        public Carom.Extensions.CushionBuilder When(System.Func<System.Exception, bool> predicate) { }
+        public Carom.Extensions.CushionBuilder WithinLast(System.TimeSpan duration) { }
     }
     public readonly struct Masse
     {

@@ -23,7 +23,7 @@ namespace Carom.Extensions.Tests
             // This test exposes the race condition in RingBuffer.CountWhere where
             // concurrent Add operations can corrupt the count results.
             var cushion = Cushion.ForService("ringbuffer-race-" + Guid.NewGuid())
-                .OpenAfter(failures: 50, within: 100)
+                .OpenAfter(failures: 50, trackingLast: 100)
                 .HalfOpenAfter(TimeSpan.FromSeconds(30));
 
             var failureCount = 0;
@@ -79,7 +79,7 @@ namespace Carom.Extensions.Tests
             // This test exposes the race condition where multiple threads can
             // enter the half-open state and execute test requests concurrently.
             var cushion = Cushion.ForService("halfopen-race-" + Guid.NewGuid())
-                .OpenAfter(failures: 1, within: 1)
+                .OpenAfter(failures: 1, trackingLast: 1)
                 .HalfOpenAfter(TimeSpan.FromMilliseconds(50));
 
             // Step 1: Open the circuit
@@ -364,7 +364,7 @@ namespace Carom.Extensions.Tests
                 barrier.SignalAndWait();
 
                 var cushion = Cushion.ForService(serviceKey)
-                    .OpenAfter(failures: 3, within: 5)
+                    .OpenAfter(failures: 3, trackingLast: 5)
                     .HalfOpenAfter(TimeSpan.FromSeconds(30));
 
                 // Execute to trigger state creation
@@ -397,7 +397,7 @@ namespace Carom.Extensions.Tests
             // Note: We can't actually run 2 billion operations, so this is a conceptual test.
 
             var cushion = Cushion.ForService("overflow-test-" + Guid.NewGuid())
-                .OpenAfter(failures: 1000, within: 2000)
+                .OpenAfter(failures: 1000, trackingLast: 2000)
                 .HalfOpenAfter(TimeSpan.FromSeconds(30));
 
             // Run a large number of operations
@@ -435,7 +435,7 @@ namespace Carom.Extensions.Tests
             for (int i = 0; i < 10; i++)
             {
                 var cushion = Cushion.ForService($"{testPrefix}{i}")
-                    .OpenAfter(failures: 1, within: 1)
+                    .OpenAfter(failures: 1, trackingLast: 1)
                     .HalfOpenAfter(TimeSpan.FromSeconds(30));
 
                 try
@@ -453,7 +453,7 @@ namespace Carom.Extensions.Tests
 
             // New operations should work with fresh state
             var freshCushion = Cushion.ForService($"fresh-{Guid.NewGuid()}")
-                .OpenAfter(failures: 1, within: 1)
+                .OpenAfter(failures: 1, trackingLast: 1)
                 .HalfOpenAfter(TimeSpan.FromSeconds(30));
 
             var result = await CaromCushionExtensions.ShotAsync(

@@ -19,7 +19,24 @@ namespace Carom.Extensions
         private long _lastFailureTicks;
         private long _openedAtTimestamp;
         private int _hasOpened; // 0 = never opened, 1 = opened at least once
-        private readonly RingBuffer<bool> _recentResults;
+        private readonly RingBuffer<Outcome> _recentResults;
+
+        // Sampling duration in Stopwatch.Frequency units; long.MaxValue = no expiry.
+        private readonly long _samplingDurationTimestamps;
+
+        // One recorded call outcome. Wider than a machine word; a torn read in the
+        // ring buffer's seqlock path is discarded by its version check.
+        private readonly struct Outcome
+        {
+            public readonly bool Success;
+            public readonly long Timestamp;
+
+            public Outcome(bool success, long timestamp)
+            {
+                Success = success;
+                Timestamp = timestamp;
+            }
+        }
 
         // Monotonic timestamp source in Stopwatch.Frequency units. DateTime.UtcNow
         // moves backwards on NTP corrections and jumps forward on VM resume; a
@@ -29,11 +46,14 @@ namespace Carom.Extensions
 
         public CircuitState State => (CircuitState)Volatile.Read(ref _state);
 
-        public CushionState(int samplingWindow, Func<long>? timestamp = null)
+        public CushionState(int samplingWindow, Func<long>? timestamp = null, TimeSpan? samplingDuration = null)
         {
-            _recentResults = new RingBuffer<bool>(samplingWindow);
+            _recentResults = new RingBuffer<Outcome>(samplingWindow);
             _state = (int)CircuitState.Closed;
             _timestamp = timestamp ?? Stopwatch.GetTimestamp;
+            _samplingDurationTimestamps = samplingDuration.HasValue
+                ? (long)(samplingDuration.Value.TotalSeconds * Stopwatch.Frequency)
+                : long.MaxValue;
         }
 
         /// <summary>
@@ -41,7 +61,7 @@ namespace Carom.Extensions
         /// </summary>
         public void RecordSuccess()
         {
-            _recentResults.Add(true);
+            _recentResults.Add(new Outcome(true, _timestamp()));
             Interlocked.Increment(ref _successCount);
         }
 
@@ -50,17 +70,27 @@ namespace Carom.Extensions
         /// </summary>
         public void RecordFailure()
         {
-            _recentResults.Add(false);
+            _recentResults.Add(new Outcome(false, _timestamp()));
             Interlocked.Increment(ref _failureCount);
             Interlocked.Exchange(ref _lastFailureTicks, DateTime.UtcNow.Ticks);
+        }
+
+        // Counts failures no older than the sampling duration. Compared as
+        // now - timestamp to stay overflow-safe with the MaxValue sentinel.
+        private int CountFreshFailures()
+        {
+            return _recentResults.CountWhere(
+                (Now: _timestamp(), Duration: _samplingDurationTimestamps),
+                static (o, s) => !o.Success && s.Now - o.Timestamp <= s.Duration);
         }
 
         /// <summary>
         /// Records a failure and atomically transitions to Open if the threshold is met.
         /// Combines record + check + transition to avoid race with concurrent Close/Reset.
+        /// The window does not need to be full: the threshold trips on its own.
         /// Returns true if the circuit was opened by this call.
         /// </summary>
-        public bool RecordFailureAndTryOpen(int failureThreshold, int samplingWindow)
+        public bool RecordFailureAndTryOpen(int failureThreshold)
         {
             RecordFailure();
 
@@ -68,10 +98,9 @@ namespace Carom.Extensions
             if (State != CircuitState.Closed)
                 return false;
 
-            var failures = _recentResults.CountWhere(x => !x);
-            var total = _recentResults.Count;
+            var failures = CountFreshFailures();
 
-            if (total >= samplingWindow && failures >= failureThreshold)
+            if (failures >= failureThreshold)
             {
                 // Atomically transition from Closed to Open only
                 if (Interlocked.CompareExchange(ref _state, (int)CircuitState.Open, (int)CircuitState.Closed) == (int)CircuitState.Closed)
@@ -82,18 +111,6 @@ namespace Carom.Extensions
             }
 
             return false;
-        }
-
-        /// <summary>
-        /// Determines if the circuit should open based on failure threshold.
-        /// </summary>
-        public bool ShouldOpen(int failureThreshold, int samplingWindow)
-        {
-            var failures = _recentResults.CountWhere(x => !x);
-            var total = _recentResults.Count;
-
-            // Need enough samples AND enough failures
-            return total >= samplingWindow && failures >= failureThreshold;
         }
 
         /// <summary>
@@ -113,6 +130,14 @@ namespace Carom.Extensions
             Interlocked.Exchange(ref _openedAtTimestamp, _timestamp());
             Interlocked.Exchange(ref _hasOpened, 1);
         }
+
+        /// <summary>
+        /// Returns an inconclusive half-open probe to Open. Same transition as
+        /// Open: MarkOpened restarts the delay so the next probe waits the full
+        /// delay, and leaving HalfOpen keeps the single-winner property sound.
+        /// Named apart because nothing failed; the probe just did not run.
+        /// </summary>
+        public void AbandonProbe() => Open();
 
         /// <summary>
         /// Closes the circuit (reset to normal operation).

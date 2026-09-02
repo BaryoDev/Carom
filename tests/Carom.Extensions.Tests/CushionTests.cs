@@ -25,7 +25,7 @@ namespace Carom.Extensions.Tests
         {
             var key = "getstate-closed-" + Guid.NewGuid();
             var cushion = Cushion.ForService(key)
-                .OpenAfter(failures: 3, within: 5)
+                .OpenAfter(failures: 3, trackingLast: 5)
                 .HalfOpenAfter(TimeSpan.FromSeconds(30));
 
             CaromCushionExtensions.Shot(() => 42, cushion, retries: 0);
@@ -38,7 +38,7 @@ namespace Carom.Extensions.Tests
         {
             var key = "getstate-open-" + Guid.NewGuid();
             var cushion = Cushion.ForService(key)
-                .OpenAfter(failures: 1, within: 1)
+                .OpenAfter(failures: 1, trackingLast: 1)
                 .HalfOpenAfter(TimeSpan.FromSeconds(30));
 
             try

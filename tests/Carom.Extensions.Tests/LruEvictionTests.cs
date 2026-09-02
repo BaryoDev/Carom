@@ -31,7 +31,7 @@ namespace Carom.Extensions.Tests
                 for (int i = 0; i < 15; i++)
                 {
                     var cushion = Cushion.ForService($"{testPrefix}{i}")
-                        .OpenAfter(failures: 1, within: 1)
+                        .OpenAfter(failures: 1, trackingLast: 1)
                         .HalfOpenAfter(TimeSpan.FromSeconds(30));
 
                     try
