@@ -25,8 +25,8 @@
   <circle cx="64" cy="71" r="21" fill="#FFFFFF"/>
 
   <!-- the 9 as geometry, so it never depends on a font being present -->
-  <path d="M62.6 58.8 a8.4 8.4 0 1 1 -0.01 0 Z M62.6 64.5 a2.7 2.7 0 1 0 0.01 0 Z" fill="#131A22" fill-rule="evenodd"/>
-  <path d="M68.2 70.2 L73.8 72.7 L67.2 84.8 L61.2 82.1 Z" fill="#131A22"/>
+  <path fill="#131A22" fill-rule="evenodd" d="M63 55.2 a8.8 8.8 0 1 1 -0.01 0 Z M63 59.4 a4.6 4.6 0 1 0 0.01 0 Z"/>
+  <path fill="#131A22" d="M67.6 64 L71.8 64 L71.8 87 L67.6 87 Z"/>
 
   <ellipse cx="43" cy="33" rx="14" ry="8.5" fill="#FFFFFF" opacity="0.8" transform="rotate(-30 43 33)"/>
 </svg>
