@@ -126,12 +126,16 @@ finding.
 ### Added - packaging
 
 - All seven packages ship a NuGet icon. Every one showed the grey placeholder in
-  the gallery before (#37). The mark is a white cue ball and a gold bounced path
-  on billiards green, generated from `assets/icon-spec.json` and checked against
-  the house style; `assets/logo.svg` is the source, `assets/logo.png` the 128px
-  render that packs. Verified by packing the core and inspecting the nupkg: the
-  icon element is present, the PNG is 128x128, and the dependency group is still
-  empty so the zero-dependency gate is unaffected
+  the gallery before (#37). The mark is a rendered nine ball: an ivory sphere,
+  a gold stripe with elliptical edges so it reads tilted rather than flat, and
+  the 9 drawn as geometry rather than text, because nothing embeds a font in a
+  shipped SVG. `assets/logo.svg` is the source, `assets/logo.png` the 128px
+  render that packs. It is a documented exception to the flat house style, like
+  the Mapsicle and Verdict marks, and was checked at the size that decides a
+  package icon: at 32px the silhouette held on a dark listing but disappeared on
+  a white one until a rim was added. Verified by packing the core and inspecting
+  the nupkg: the icon element is present, the PNG is 128x128, and the dependency
+  group is still empty so the zero-dependency gate is unaffected
 
 ### Changed - Carom.Telemetry.OpenTelemetry
 
