@@ -246,16 +246,20 @@ namespace Carom.Tests
                         throw new InvalidOperationException("subscriber is broken");
                 };
 
+                int calls = 0;
                 var thrown = await Assert.ThrowsAsync<CaromHooksProbeException>(() =>
                     Carom.ShotAsync<int>(
-                        () => throw new CaromHooksProbeException(),
+                        () => { calls++; throw new CaromHooksProbeException(); },
                         retries: 2,
                         baseDelay: TimeSpan.FromMilliseconds(1),
                         timeout: null,
                         shouldBounce: null,
                         disableJitter: true));
 
+                // The exception type alone would pass if the loop stopped retrying, so count
+                // the attempts too: retries 2 means three executions.
                 Assert.IsType<CaromHooksProbeException>(thrown);
+                Assert.Equal(3, calls);
             }
             finally
             {

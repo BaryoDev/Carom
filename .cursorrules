@@ -17,7 +17,7 @@
 
 - Skill: `baryo-compliance`
   - License: MPL-2.0
-  - Header: Ensure all files have the BaryoDev copyright header.
+  - Header: MPL-2.0 header on every source file under `src/` (see CONTRIBUTING.md). Not on docs, project files, scripts, tests or generated snapshots.
 
 - Skill: `baryo-packaging`
   - Workflow: **Manual Only**. Never auto-publish.
