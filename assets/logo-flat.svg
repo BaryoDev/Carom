@@ -5,16 +5,6 @@
     <circle cx="64" cy="58.5" r="8.5" fill="none" stroke="#131A22" stroke-width="5.5"/>
     <path d="M 69.75,58.5 L 75.25,58.5 L 72.25,80.5 L 66.75,80.5 Z" fill="#131A22"/>
   </g>
-  <radialGradient id="shade" cx="36%" cy="28%" r="78%">
-    <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.55"/>
-    <stop offset="42%" stop-color="#FFFFFF" stop-opacity="0.06"/>
-    <stop offset="76%" stop-color="#131A22" stop-opacity="0.06"/>
-    <stop offset="100%" stop-color="#131A22" stop-opacity="0.34"/>
-  </radialGradient>
-  <radialGradient id="spec" cx="50%" cy="50%" r="50%">
-    <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.95"/>
-    <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
-  </radialGradient>
 </defs>
   <circle cx="64" cy="64" r="60" fill="#FCFBF6"/>
   <g clip-path="url(#ballClip)">
@@ -22,7 +12,5 @@
   </g>
   <circle cx="64" cy="64" r="27" fill="#FFFFFF"/>
   <use href="#nine"/>
-  <circle cx="64" cy="64" r="60" fill="url(#shade)"/>
-  <ellipse cx="46" cy="37" rx="21" ry="14" fill="url(#spec)"/>
   <circle cx="64" cy="64" r="57.5" fill="none" stroke="#A9A89C" stroke-width="5"/>
 </svg>

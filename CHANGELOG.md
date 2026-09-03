@@ -133,9 +133,13 @@ finding.
   render that packs. It is a documented exception to the flat house style, like
   the Mapsicle and Verdict marks, and was checked at the size that decides a
   package icon: at 32px the silhouette held on a dark listing but disappeared on
-  a white one until a rim was added. Verified by packing the core and inspecting
-  the nupkg: the icon element is present, the PNG is 128x128, and the dependency
-  group is still empty so the zero-dependency gate is unaffected
+  a white one until a rim was added. The mark exists in three cuts because detail
+  that helps at 128 hurts at 16: `logo.svg` carries the shading and highlight and
+  is what packs, `logo-flat.svg` drops both for 32 to 64, and `logo-micro.svg`
+  squares the band and enlarges the numeral for 16 to 24. Verified by packing the
+  core and inspecting the nupkg: the icon element is present, the PNG is 128x128,
+  and the dependency group is still empty so the zero-dependency gate is
+  unaffected
 
 ### Changed - Carom.Telemetry.OpenTelemetry
 

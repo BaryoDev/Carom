@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="Carom">
+<defs>
+  <clipPath id="ballClip"><circle cx="64" cy="64" r="60"/></clipPath>
+  <g id="nine">
+    <circle cx="64" cy="58.5" r="8.5" fill="none" stroke="#131A22" stroke-width="5.5"/>
+    <path d="M 69.75,58.5 L 75.25,58.5 L 72.25,80.5 L 66.75,80.5 Z" fill="#131A22"/>
+  </g>
+</defs>
+  <circle cx="64" cy="64" r="60" fill="#FCFBF6"/>
+  <g clip-path="url(#ballClip)">
+    <path d="M 0,30 L 128,30 L 128,98 L 0,98 Z" fill="#FFC53D"/>
+  </g>
+  <circle cx="64" cy="64" r="32" fill="#FFFFFF"/>
+  <use href="#nine" transform="translate(64,64) scale(1.18) translate(-64,-64)"/>
+  <circle cx="64" cy="64" r="57.5" fill="none" stroke="#A9A89C" stroke-width="6"/>
+</svg>
