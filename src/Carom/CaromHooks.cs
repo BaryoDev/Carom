@@ -92,5 +92,23 @@ namespace Carom
 
         /// <summary>Raised when a rate limiter rejects a call.</summary>
         public static Action<RateLimitRejectedSignal>? OnRateLimitRejected { get; set; }
+
+        /// <summary>
+        /// Invokes a hook without letting it break the path it observes. Raises happen inside
+        /// catch blocks, so a subscriber that throws would replace the caller's exception and
+        /// skip the retry entirely. That is the same failure this release fixed for a negative
+        /// retry delay, and a diagnostics hook must not reintroduce it.
+        /// </summary>
+        internal static void Invoke<T>(Action<T> handler, T signal)
+        {
+            try
+            {
+                handler(signal);
+            }
+            catch
+            {
+                // A hook cannot change what the caller sees. Swallowed on purpose.
+            }
+        }
     }
 }

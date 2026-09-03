@@ -65,6 +65,23 @@ finding.
   `SamplingDuration`. It used to compare `SamplingWindow` alone, so a lenient
   call site silently repurposed a circuit a strict one had registered
 
+### Fixed - Carom
+
+- A hook subscriber that throws no longer breaks the path it observes. Raises
+  happen inside catch blocks, so an unguarded subscriber replaced the caller's
+  exception and skipped the retry entirely: a throwing `OnRetry` turned four
+  attempts into one and surfaced the subscriber's exception instead of the real
+  failure. That is the same shape as the negative-delay defect fixed elsewhere in
+  this release, so the guard lives in one place, `CaromHooks.Invoke`, rather than
+  at each of the twelve raise sites
+
+### Removed - packaging
+
+- `publish.sh` is deleted. It updated `<Version>` in two of the seven project
+  files, used `PackageVersion` where the workflow uses `Version`, and its
+  `sed -i ''` only runs on macOS, so running it produced five packages at stale
+  versions. The publish workflow is the one path
+
 ### Added - Carom
 
 - `CaromHooks` gives the library four signals a consumer can subscribe to: retry,

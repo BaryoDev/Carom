@@ -139,5 +139,97 @@ namespace Carom.Extensions.Tests
                 CaromHooks.OnRateLimitRejected = prior;
             }
         }
+        [Fact]
+        public void AThrowingCircuitHook_DoesNotReplaceTheCallersException()
+        {
+            var prior = CaromHooks.OnCircuitOpened;
+            try
+            {
+                var key = "throwhook-" + Guid.NewGuid();
+                CaromHooks.OnCircuitOpened = s =>
+                {
+                    if (s.ServiceKey == key) throw new InvalidOperationException("subscriber is broken");
+                };
+
+                var cushion = Cushion.ForService(key)
+                    .OpenAfter(failures: 1, trackingLast: 1)
+                    .HalfOpenAfter(TimeSpan.FromSeconds(30));
+
+                // Unguarded, the caller sees InvalidOperationException instead of its own failure.
+                Assert.Throws<InvalidTimeZoneException>(() =>
+                    CaromCushionExtensions.Shot<int>(
+                        () => throw new InvalidTimeZoneException("downstream is sick"),
+                        cushion,
+                        retries: 0));
+
+                Assert.Equal(CircuitState.Open, Cushion.GetState(key));
+            }
+            finally
+            {
+                CaromHooks.OnCircuitOpened = prior;
+            }
+        }
+
+        [Fact]
+        public void AThrowingBulkheadHook_DoesNotReplaceTheRejection()
+        {
+            var prior = CaromHooks.OnBulkheadRejected;
+            try
+            {
+                var key = "throwhook-" + Guid.NewGuid();
+                CaromHooks.OnBulkheadRejected = s =>
+                {
+                    if (s.ResourceKey == key) throw new InvalidOperationException("subscriber is broken");
+                };
+
+                var comp = Compartment.ForResource(key).WithMaxConcurrency(1).Build();
+                var release = new ManualResetEventSlim(false);
+                var entered = new ManualResetEventSlim(false);
+                var holder = Task.Run(() => CaromCompartmentExtensions.Shot(
+                    () => { entered.Set(); release.Wait(); return 1; }, comp, retries: 0));
+                Assert.True(entered.Wait(TimeSpan.FromSeconds(5)));
+
+                try
+                {
+                    Assert.Throws<CompartmentFullException>(() =>
+                        CaromCompartmentExtensions.Shot(() => 1, comp, retries: 0));
+                }
+                finally
+                {
+                    release.Set();
+                    holder.Wait(TimeSpan.FromSeconds(5));
+                }
+            }
+            finally
+            {
+                CaromHooks.OnBulkheadRejected = prior;
+            }
+        }
+
+        [Fact]
+        public void AThrowingThrottleHook_DoesNotReplaceTheRejection()
+        {
+            var prior = CaromHooks.OnRateLimitRejected;
+            try
+            {
+                var key = "throwhook-" + Guid.NewGuid();
+                CaromHooks.OnRateLimitRejected = s =>
+                {
+                    if (s.ServiceKey == key) throw new InvalidOperationException("subscriber is broken");
+                };
+
+                var throttle = Throttle.ForService(key)
+                    .WithRate(1, TimeSpan.FromMinutes(10)).WithBurst(1).Build();
+
+                CaromThrottleExtensions.Shot(() => 1, throttle, retries: 0);
+                Assert.Throws<ThrottledException>(() =>
+                    CaromThrottleExtensions.Shot(() => 1, throttle, retries: 0));
+            }
+            finally
+            {
+                CaromHooks.OnRateLimitRejected = prior;
+            }
+        }
+
     }
 }

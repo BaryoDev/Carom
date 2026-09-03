@@ -201,5 +201,67 @@ namespace Carom.Tests
                 CaromHooks.OnRetry = prior;
             }
         }
+        [Fact]
+        public void AThrowingHook_DoesNotBreakTheRetryItObserves()
+        {
+            var prior = CaromHooks.OnRetry;
+            try
+            {
+                var threadId = Environment.CurrentManagedThreadId;
+                CaromHooks.OnRetry = _ =>
+                {
+                    if (Environment.CurrentManagedThreadId == threadId)
+                        throw new InvalidOperationException("subscriber is broken");
+                };
+
+                int calls = 0;
+                var thrown = Assert.Throws<CaromHooksProbeException>(() =>
+                    Carom.Shot<int>(
+                        () => { calls++; throw new CaromHooksProbeException(); },
+                        retries: 3,
+                        baseDelay: TimeSpan.FromMilliseconds(1),
+                        shouldBounce: null,
+                        disableJitter: true));
+
+                // Unguarded, the subscriber's exception escapes the catch block: the caller
+                // sees InvalidOperationException and only one attempt ever runs.
+                Assert.IsType<CaromHooksProbeException>(thrown);
+                Assert.Equal(4, calls);
+            }
+            finally
+            {
+                CaromHooks.OnRetry = prior;
+            }
+        }
+
+        [Fact]
+        public async Task AThrowingHook_DoesNotBreakTheAsyncRetryItObserves()
+        {
+            var prior = CaromHooks.OnRetry;
+            try
+            {
+                CaromHooks.OnRetry = s =>
+                {
+                    if (s.ExceptionTypeName == nameof(CaromHooksProbeException))
+                        throw new InvalidOperationException("subscriber is broken");
+                };
+
+                var thrown = await Assert.ThrowsAsync<CaromHooksProbeException>(() =>
+                    Carom.ShotAsync<int>(
+                        () => throw new CaromHooksProbeException(),
+                        retries: 2,
+                        baseDelay: TimeSpan.FromMilliseconds(1),
+                        timeout: null,
+                        shouldBounce: null,
+                        disableJitter: true));
+
+                Assert.IsType<CaromHooksProbeException>(thrown);
+            }
+            finally
+            {
+                CaromHooks.OnRetry = prior;
+            }
+        }
+
     }
 }

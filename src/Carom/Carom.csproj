@@ -32,6 +32,9 @@
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>Carom.Tests</_Parameter1>
     </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Carom.Extensions</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 
 </Project>

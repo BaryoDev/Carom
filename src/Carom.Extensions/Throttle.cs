@@ -66,7 +66,7 @@ namespace Carom.Extensions
             if (!state.TryAcquire())
             {
                 var onRejected = CaromHooks.OnRateLimitRejected;
-                if (onRejected != null) onRejected(new RateLimitRejectedSignal(ServiceKey));
+                if (onRejected != null) CaromHooks.Invoke(onRejected, new RateLimitRejectedSignal(ServiceKey));
                 throw new ThrottledException(ServiceKey, MaxRequests, TimeWindow);
             }
 
@@ -83,7 +83,7 @@ namespace Carom.Extensions
             if (!state.TryAcquire())
             {
                 var onRejected = CaromHooks.OnRateLimitRejected;
-                if (onRejected != null) onRejected(new RateLimitRejectedSignal(ServiceKey));
+                if (onRejected != null) CaromHooks.Invoke(onRejected, new RateLimitRejectedSignal(ServiceKey));
                 throw new ThrottledException(ServiceKey, MaxRequests, TimeWindow);
             }
 
