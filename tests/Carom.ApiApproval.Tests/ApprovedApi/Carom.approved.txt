@@ -1,3 +1,4 @@
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("Carom.Extensions")]
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("Carom.Tests")]
 namespace Carom
 {

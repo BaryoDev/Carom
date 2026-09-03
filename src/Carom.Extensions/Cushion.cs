@@ -113,7 +113,7 @@ namespace Carom.Extensions
                     {
                         // Raised once per closed-to-open transition, not per failure.
                         var onOpened = CaromHooks.OnCircuitOpened;
-                        if (onOpened != null) onOpened(new CircuitOpenedSignal(ServiceKey));
+                        if (onOpened != null) CaromHooks.Invoke(onOpened, new CircuitOpenedSignal(ServiceKey));
                     }
                     throw;
                 }
@@ -204,7 +204,7 @@ namespace Carom.Extensions
                     {
                         // Raised once per closed-to-open transition, not per failure.
                         var onOpened = CaromHooks.OnCircuitOpened;
-                        if (onOpened != null) onOpened(new CircuitOpenedSignal(ServiceKey));
+                        if (onOpened != null) CaromHooks.Invoke(onOpened, new CircuitOpenedSignal(ServiceKey));
                     }
                     throw;
                 }

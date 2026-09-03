@@ -94,10 +94,9 @@ jobs:
           set -uo pipefail
           expected="Carom Carom.AspNetCore Carom.DependencyInjection Carom.EntityFramework Carom.Extensions Carom.Http Carom.Telemetry.OpenTelemetry"
 
-          # Strip the version and the .nupkg to get the package id. Symbol packages are excluded
-          # so a .snupkg alongside a .nupkg is not counted as a second package.
-          actual=$(find ./artifacts -maxdepth 1 -name '*.nupkg' ! -name '*.symbols.nupkg' -exec basename {} \; \
-                   | sed -E 's/\.[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?\.nupkg$//' | sort -u)
+          # One copy of the version-stripping rule, shared with publish.yml. It lived in
+          # three places and that is how the publish list drifted from this assertion (#33).
+          actual=$(scripts/packed-package-ids.sh ./artifacts)
 
           echo "packed:"; printf '  %s\n' $actual
 

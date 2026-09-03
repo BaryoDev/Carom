@@ -5,43 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.1.0] - Unreleased
+## [2.0.0] - 2026-09-03
 
-### Added - Carom
+An adversarial audit of the retry, timeout, circuit breaker and bulkhead paths
+found twelve defects. Fixing them turned up four more: two from writing tests for
+three packages that had none, and two from the fixes themselves. All sixteen are
+closed here.
 
-- `CaromHooks` gives the library four signals a consumer can subscribe to: retry,
-  circuit opened, bulkhead rejected, rate limit rejected. Each carries a
-  `readonly struct` payload so a later field is additive and nothing boxes. The
-  delegate is read into a local and null-checked before anything is computed, so
-  an unsubscribed hot path costs nothing: gated at 0 bytes over 10,000 retrying
-  calls, alongside the existing 0 bytes over 10,000 successful ones
+Every one was reproduced against the built assemblies and run head to head
+against Polly v8, the Polly v7 API and System.Threading.RateLimiting. The
+published suite was green throughout, so each sat in a blind spot the tests did
+not reach.
 
-### Added - Carom.Telemetry.OpenTelemetry
-
-- `CaromTelemetry.Subscribe()` and `Unsubscribe()` wire the meters to those
-  hooks. Until now the package emitted nothing at all: `CaromTelemetry` appeared
-  exactly once in the source tree, its own declaration, while its instruments sat
-  unreferenced (#39). Subscribing twice records once. Instrument and meter names
-  are unchanged.
-- The core keeps zero package dependencies. The seam lives in `Carom` and the
-  telemetry package subscribes to it, rather than the core calling the package,
-  because the dependency only points one way. `DiagnosticSource` would have been
-  the conventional answer and is a NuGet reference, which the core does not take
-
-### Fixed - packaging
-
-- `publish.yml` packed six projects by name and omitted
-  `Carom.DependencyInjection`, so it was built, tested and never shipped while CI
-  asserted a seven-package set. It packs the solution now and repeats CI's
-  package-set assertion on the path that actually publishes (#33)
-
-## [2.0.0] - Unreleased
-
-Twelve defects found by an adversarial audit of the retry, timeout, circuit
-breaker and bulkhead paths, each reproduced against the built assemblies and run
-head to head against Polly v8, the Polly v7 API and System.Threading.RateLimiting.
-The published suite was green throughout, so every one of these sat in a blind
-spot the tests did not reach.
+The release also makes the OpenTelemetry package emit for the first time and
+makes Carom.DependencyInjection publishable, neither of which was an audit
+finding.
 
 ### Breaking - Carom
 
@@ -87,17 +65,31 @@ spot the tests did not reach.
   `SamplingDuration`. It used to compare `SamplingWindow` alone, so a lenient
   call site silently repurposed a circuit a strict one had registered
 
-### Added - packaging
+### Fixed - Carom
 
-- All seven packages ship a NuGet icon. Every one showed the grey placeholder in
-  the gallery before (#37). The mark is a white cue ball and a gold bounced path
-  on billiards green, generated from `assets/icon-spec.json` and checked against
-  the house style; `assets/logo.svg` is the source, `assets/logo.png` the 128px
-  render that packs. Verified by packing the core and inspecting the nupkg: the
-  icon element is present, the PNG is 128x128, and the dependency group is still
-  empty so the zero-dependency gate is unaffected
+- A hook subscriber that throws no longer breaks the path it observes. Raises
+  happen inside catch blocks, so an unguarded subscriber replaced the caller's
+  exception and skipped the retry entirely: a throwing `OnRetry` turned four
+  attempts into one and surfaced the subscriber's exception instead of the real
+  failure. That is the same shape as the negative-delay defect fixed elsewhere in
+  this release, so the guard lives in one place, `CaromHooks.Invoke`, rather than
+  at each of the twelve raise sites
+
+### Removed - packaging
+
+- `publish.sh` is deleted. It updated `<Version>` in two of the seven project
+  files, used `PackageVersion` where the workflow uses `Version`, and its
+  `sed -i ''` only runs on macOS, so running it produced five packages at stale
+  versions. The publish workflow is the one path
 
 ### Added - Carom
+
+- `CaromHooks` gives the library four signals a consumer can subscribe to: retry,
+  circuit opened, bulkhead rejected, rate limit rejected. Each carries a
+  `readonly struct` payload so a later field is additive and nothing boxes. The
+  delegate is read into a local and null-checked before anything is computed, so
+  an unsubscribed hot path costs nothing: gated at 0 bytes over 10,000 retrying
+  calls, alongside the existing 0 bytes over 10,000 successful ones
 
 - `Bounce.WithMaxDelay(TimeSpan)` and the same on `Bounce<T>` make the retry
   delay ceiling configurable. It was a hardcoded 30 seconds in `JitterStrategy`,
@@ -119,15 +111,47 @@ spot the tests did not reach.
   calling code opened the circuit on a healthy service
 - `CushionBuilder.WithinLast(TimeSpan)` sets the sampling duration
 
-### Fixed - Carom.Extensions
+### Added - Carom.Telemetry.OpenTelemetry
 
-- `CompartmentStore` validates a conflicting registration on the lost-`GetOrAdd`
-  race as well as the sequential path. Under a concurrent first touch, 16 of 50
-  conflicting registrations were accepted silently, so a bulkhead sized for one
-  could run at fifty. This is the bug `ThrottleStore` had already fixed
-- All three stores now share one conflict rule in `StoreConflictHelper` and call
-  it on both registration paths. The rule existed in three copies and was
-  enforced fully in one
+- `CaromTelemetry.Subscribe()` and `Unsubscribe()` wire the meters to those
+  hooks. Until now the package emitted nothing at all: `CaromTelemetry` appeared
+  exactly once in the source tree, its own declaration, while its instruments sat
+  unreferenced (#39). Subscribing twice records once. Instrument and meter names
+  are unchanged.
+- The core keeps zero package dependencies. The seam lives in `Carom` and the
+  telemetry package subscribes to it, rather than the core calling the package,
+  because the dependency only points one way. `DiagnosticSource` would have been
+  the conventional answer and is a NuGet reference, which the core does not take
+
+### Added - packaging
+
+- All seven packages ship a NuGet icon. Every one showed the grey placeholder in
+  the gallery before (#37). The mark is a rendered nine ball: an ivory sphere,
+  a gold stripe with elliptical edges so it reads tilted rather than flat, and
+  the 9 drawn as geometry rather than text, because nothing embeds a font in a
+  shipped SVG. `assets/logo.svg` is the source, `assets/logo.png` the 128px
+  render that packs. It is a documented exception to the flat house style, like
+  the Mapsicle and Verdict marks, and was checked at the size that decides a
+  package icon: at 32px the silhouette held on a dark listing but disappeared on
+  a white one until a rim was added. The mark exists in three cuts because detail
+  that helps at 128 hurts at 16: `logo.svg` carries the shading and highlight and
+  is what packs, `logo-flat.svg` drops both for 32 to 64, and `logo-micro.svg`
+  squares the band and enlarges the numeral for 16 to 24. Verified by packing the
+  core and inspecting the nupkg: the icon element is present, the PNG is 128x128,
+  and the dependency group is still empty so the zero-dependency gate is
+  unaffected
+
+### Changed - Carom.Telemetry.OpenTelemetry
+
+- The package description promised "automatic metrics, traces, and activity
+  tracking for all Carom resilience patterns". Nothing is automatic:
+  `CaromTelemetry` appears exactly once in the whole source tree, its own
+  declaration, and no core, extension, HTTP, DI, ASP.NET Core or EF path ever
+  calls its Record methods or `StartActivity`. The instruments work when called,
+  which is now tested. The description and the README row say what the package
+  actually does instead. Wiring the hooks into the core paths is filed
+  separately; it needs a seam that does not make the core depend on the
+  telemetry package, which is a larger design job than this release
 
 ### Changed - docs
 
@@ -154,6 +178,37 @@ spot the tests did not reach.
   observable contract rather than explaining the cause, and the code says so.
   It does not stop the abandoned work, only guarantees the caller is told
 
+### Fixed - Carom.EntityFramework
+
+- `TimeoutRejectedException` is now retried. The transient classifier decided
+  what to retry by lowercasing the message and looking for "timeout", but
+  Carom's own timeout reads "Operation timed out after Nms", which does not
+  contain that substring. So the one exception this release explicitly keeps
+  retryable was classified permanent by Carom's own EF package and never
+  retried. It is now matched by type before the message fallback, which is
+  otherwise unchanged so nothing that used to retry stopped.
+  `DbUpdateConcurrencyException` is deliberately not transient: replaying the
+  same stale original values hits the same conflict and can mask a lost update.
+  Only the parameter overload was affected; the Bounce overload never consulted
+  this classifier and was already correct
+
+### Fixed - Carom.Extensions
+
+- `CompartmentStore` validates a conflicting registration on the lost-`GetOrAdd`
+  race as well as the sequential path. Under a concurrent first touch, 16 of 50
+  conflicting registrations were accepted silently, so a bulkhead sized for one
+  could run at fifty. This is the bug `ThrottleStore` had already fixed
+- All three stores now share one conflict rule in `StoreConflictHelper` and call
+  it on both registration paths. The rule existed in three copies and was
+  enforced fully in one
+
+### Fixed - packaging
+
+- `publish.yml` packed six projects by name and omitted
+  `Carom.DependencyInjection`, so it was built, tested and never shipped while CI
+  asserted a seven-package set. It packs the solution now and repeats CI's
+  package-set assertion on the path that actually publishes (#33)
+
 ### Fixed - review follow-ups
 
 - The `Bounce` overloads on the Cushion, Compartment and Throttle extensions
@@ -174,32 +229,6 @@ spot the tests did not reach.
 - The extensions size gate passed silently when it could not find the assembly,
   and `docs/BENCHMARKS.md` stated the measured sizes as though the test asserted
   them exactly rather than as upper bounds
-
-### Fixed - Carom.EntityFramework
-
-- `TimeoutRejectedException` is now retried. The transient classifier decided
-  what to retry by lowercasing the message and looking for "timeout", but
-  Carom's own timeout reads "Operation timed out after Nms", which does not
-  contain that substring. So the one exception this release explicitly keeps
-  retryable was classified permanent by Carom's own EF package and never
-  retried. It is now matched by type before the message fallback, which is
-  otherwise unchanged so nothing that used to retry stopped.
-  `DbUpdateConcurrencyException` is deliberately not transient: replaying the
-  same stale original values hits the same conflict and can mask a lost update.
-  Only the parameter overload was affected; the Bounce overload never consulted
-  this classifier and was already correct
-
-### Changed - Carom.Telemetry.OpenTelemetry
-
-- The package description promised "automatic metrics, traces, and activity
-  tracking for all Carom resilience patterns". Nothing is automatic:
-  `CaromTelemetry` appears exactly once in the whole source tree, its own
-  declaration, and no core, extension, HTTP, DI, ASP.NET Core or EF path ever
-  calls its Record methods or `StartActivity`. The instruments work when called,
-  which is now tested. The description and the README row say what the package
-  actually does instead. Wiring the hooks into the core paths is filed
-  separately; it needs a seam that does not make the core depend on the
-  telemetry package, which is a larger design job than this release
 
 ### Fixed - tests
 
