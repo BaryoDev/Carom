@@ -18,18 +18,19 @@ public class BouncePassthroughTests
 {
     private sealed class SlowHandler : HttpMessageHandler
     {
-        public volatile bool SawCancellation;
+        public readonly TaskCompletionSource<bool> SawCancellation =
+            new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)
         {
             try
             {
-                await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken).ConfigureAwait(false);
+                await Task.Delay(Timeout.Infinite, cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
-                SawCancellation = true;
+                SawCancellation.TrySetResult(true);
                 throw;
             }
             return new HttpResponseMessage(HttpStatusCode.OK);
@@ -54,13 +55,17 @@ public class BouncePassthroughTests
     {
         var inner = new SlowHandler();
         var bounce = Bounce.Times(0).WithTimeout(TimeSpan.FromMilliseconds(200));
-        using var client = new HttpClient(new CaromHttpHandler(inner, bounce));
+        // No HttpClient timeout, so only the Bounce timeout can end the send. The token
+        // only stops a failing run from leaking the request.
+        using var client = new HttpClient(new CaromHttpHandler(inner, bounce)) { Timeout = Timeout.InfiniteTimeSpan };
+        using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(60));
 
-        var sw = Stopwatch.StartNew();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => client.GetAsync("http://carom.test/"));
+        var call = client.GetAsync("http://carom.test/", cleanup.Token);
+        Assert.Same(call, await Task.WhenAny(call, Task.Delay(TimeSpan.FromSeconds(30))));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => call);
 
-        Assert.True(sw.Elapsed < TimeSpan.FromSeconds(5), $"took {sw.Elapsed}");
-        Assert.True(inner.SawCancellation);
+        var winner = await Task.WhenAny(inner.SawCancellation.Task, Task.Delay(TimeSpan.FromSeconds(30)));
+        Assert.Same(inner.SawCancellation.Task, winner);
     }
 
     [Fact]
@@ -92,7 +97,7 @@ public class BouncePassthroughTests
     {
         var inner = new UnavailableHandler();
         var bounce = Bounce.Times(1)
-            .WithDelay(TimeSpan.FromSeconds(5))
+            .WithDelay(TimeSpan.FromSeconds(30))
             .WithoutJitter()
             .WithMaxDelay(TimeSpan.FromMilliseconds(10));
         using var client = new HttpClient(new CaromHttpHandler(inner, bounce));
@@ -101,6 +106,7 @@ public class BouncePassthroughTests
         await Assert.ThrowsAsync<TransientHttpException>(() => client.GetAsync("http://carom.test/"));
 
         Assert.Equal(2, inner.Calls);
-        Assert.True(sw.Elapsed < TimeSpan.FromSeconds(3), $"took {sw.Elapsed}");
+        // Uncapped, the backoff is the 30 second default ceiling.
+        Assert.True(sw.Elapsed < TimeSpan.FromSeconds(15), $"took {sw.Elapsed}");
     }
 }

@@ -32,7 +32,7 @@ namespace Carom.DependencyInjection.Tests
             {
                 try
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(10), token);
+                    await Task.Delay(Timeout.Infinite, token);
                 }
                 catch (OperationCanceledException)
                 {
@@ -43,7 +43,7 @@ namespace Carom.DependencyInjection.Tests
                 return 1;
             }));
 
-            var winner = await Task.WhenAny(observed.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+            var winner = await Task.WhenAny(observed.Task, Task.Delay(TimeSpan.FromSeconds(30)));
             Assert.Same(observed.Task, winner);
             Assert.True(await observed.Task);
         }
@@ -71,7 +71,7 @@ namespace Carom.DependencyInjection.Tests
             await Assert.ThrowsAsync<TimeoutException>(() =>
                 pipeline.ExecuteAsync(async token =>
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(10), token);
+                    await Task.Delay(Timeout.Infinite, token);
                     return 1;
                 }));
         }
