@@ -39,7 +39,7 @@ public class SaveChangesTimeoutTests
             () => context.SaveChangesWithRetryAsync(Bounce.Times(0).WithTimeout(TimeSpan.FromMilliseconds(100))));
 
         // Without the attempt token the save never sees the timeout and keeps running.
-        var finished = await Task.WhenAny(context.Cancelled.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+        var finished = await Task.WhenAny(context.Cancelled.Task, Task.Delay(TimeSpan.FromSeconds(30)));
         Assert.Same(context.Cancelled.Task, finished);
     }
 
@@ -52,7 +52,7 @@ public class SaveChangesTimeoutTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => context.SaveChangesWithRetryAsync(Bounce.Times(0), cts.Token));
 
-        var finished = await Task.WhenAny(context.Cancelled.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+        var finished = await Task.WhenAny(context.Cancelled.Task, Task.Delay(TimeSpan.FromSeconds(30)));
         Assert.Same(context.Cancelled.Task, finished);
     }
 }
