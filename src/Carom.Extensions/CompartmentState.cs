@@ -103,39 +103,35 @@ namespace Carom.Extensions
         {
             ThrowIfDisposed();
 
-            try
+            // Cancellation propagates rather than returning false: the caller gave up,
+            // the compartment was not full, and reporting it as full fires the rejection
+            // hook and counts a bulkhead rejection that never happened.
+            if (await _semaphore.WaitAsync(0, ct).ConfigureAwait(false))
             {
-                if (await _semaphore.WaitAsync(0, ct).ConfigureAwait(false))
-                {
-                    Interlocked.Increment(ref _activeCount);
-                    return true;
-                }
-
-                if (_queueDepth == 0)
-                {
-                    return false;
-                }
-
-                if (Interlocked.Increment(ref _queued) > _queueDepth)
-                {
-                    Interlocked.Decrement(ref _queued);
-                    return false;
-                }
-
-                try
-                {
-                    await _semaphore.WaitAsync(ct).ConfigureAwait(false);
-                    Interlocked.Increment(ref _activeCount);
-                    return true;
-                }
-                finally
-                {
-                    Interlocked.Decrement(ref _queued);
-                }
+                Interlocked.Increment(ref _activeCount);
+                return true;
             }
-            catch (OperationCanceledException)
+
+            if (_queueDepth == 0)
             {
                 return false;
+            }
+
+            if (Interlocked.Increment(ref _queued) > _queueDepth)
+            {
+                Interlocked.Decrement(ref _queued);
+                return false;
+            }
+
+            try
+            {
+                await _semaphore.WaitAsync(ct).ConfigureAwait(false);
+                Interlocked.Increment(ref _activeCount);
+                return true;
+            }
+            finally
+            {
+                Interlocked.Decrement(ref _queued);
             }
         }
 

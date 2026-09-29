@@ -161,7 +161,7 @@ namespace Carom.DependencyInjection
         public T Execute<T>(Func<T> action) => Carom.Shot(action, _config);
 
         public Task<T> ExecuteAsync<T>(Func<CancellationToken, Task<T>> action, CancellationToken ct) =>
-            Carom.ShotAsync(() => action(ct), _config, ct);
+            Carom.ShotAsync(action, _config, ct);
     }
 
     /// <summary>
@@ -256,7 +256,9 @@ namespace Carom.DependencyInjection
                 }
                 return result;
             }
-            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            // Only our own deadline is a timeout. An OperationCanceledException the action
+            // raised for its own reasons, such as an HttpClient timeout, passes through.
+            catch (OperationCanceledException) when (cts.IsCancellationRequested && !ct.IsCancellationRequested)
             {
                 throw new TimeoutException($"Operation timed out after {_timeout.TotalMilliseconds}ms");
             }

@@ -140,10 +140,13 @@ namespace Carom.Http
                 }
             }
 
+            // Pass the whole Bounce so every field, present and future, reaches core. The
+            // attempt token carries the Bounce timeout, so a timeout cancels the send itself.
+            var effective = _config.ShouldBounce == null ? _config.When(IsTransientException) : _config;
             return await Carom.ShotAsync(
-                async () =>
+                async token =>
                 {
-                    var response = await base.SendAsync(request, cancellationToken).ConfigureAwait(false);
+                    var response = await base.SendAsync(request, token).ConfigureAwait(false);
                     if (IsTransientError(response.StatusCode))
                     {
                         var statusCode = response.StatusCode;
@@ -152,12 +155,8 @@ namespace Carom.Http
                     }
                     return response;
                 },
-                _config.Retries,
-                _config.BaseDelay,
-                timeout: null,
-                shouldBounce: IsTransientException,
-                disableJitter: _config.DisableJitter,
-                ct: cancellationToken).ConfigureAwait(false);
+                effective,
+                cancellationToken).ConfigureAwait(false);
         }
 
         /// <summary>

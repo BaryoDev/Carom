@@ -12,9 +12,10 @@ namespace Carom.Tests
     /// </summary>
     public class PublishedClaimsTests
     {
-        // README says 20 KB core, 50 KB extensions; bounds catch a doubling without flaking on growth.
-        private const long CoreSizeBoundBytes = 40 * 1024;
-        private const long ExtensionsSizeBoundBytes = 100 * 1024;
+        // README states these bounds. They sit about 10% above the measured 25.5 KB and 54 KB;
+        // the old 40 KB and 100 KB bounds let the README's 21.5 KB core go stale unnoticed.
+        private const long CoreSizeBoundBytes = 28 * 1024;
+        private const long ExtensionsSizeBoundBytes = 60 * 1024;
 
         private static readonly Func<int> SucceedingAction = static () => 42;
 
@@ -52,7 +53,7 @@ namespace Carom.Tests
 
             Assert.True(size <= CoreSizeBoundBytes,
                 $"Carom.dll is {size} bytes, over the {CoreSizeBoundBytes} byte bound. " +
-                "The README claims a 20 KB core (the 'Tiny Footprint' bullet and the package table). " +
+                "The README states a 28 KB bound for the core (the 'Tiny Footprint' bullet and the package table). " +
                 "Update the README sizes and this bound together, deliberately.");
         }
 
@@ -76,7 +77,7 @@ namespace Carom.Tests
                 long size = new FileInfo(path).Length;
                 Assert.True(size <= ExtensionsSizeBoundBytes,
                     $"Carom.Extensions.dll at {path} is {size} bytes, over the {ExtensionsSizeBoundBytes} byte bound. " +
-                    "The README claims 50 KB extensions (the 'Tiny Footprint' bullet and the package table). " +
+                    "The README states a 60 KB bound for extensions (the 'Tiny Footprint' bullet and the package table). " +
                     "Update the README sizes and this bound together, deliberately.");
             }
         }

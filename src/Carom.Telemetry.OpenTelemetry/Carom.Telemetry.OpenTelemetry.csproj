@@ -8,7 +8,7 @@
 
     <!-- Package Metadata -->
     <PackageId>Carom.Telemetry.OpenTelemetry</PackageId>
-    <Version>2.0.0</Version>
+    <Version>2.0.1</Version>
     <Authors>Baryo.Dev</Authors>
     <Company>Baryo.Dev</Company>
     <Description>OpenTelemetry instruments for the Carom resilience library. Provides meters, counters and an ActivitySource that your code calls to record retries, circuit breaker opens, bulkhead rejections and rate limit rejections. Carom does not emit these automatically yet; see the repository issues.</Description>
