@@ -35,6 +35,13 @@ fixed. The new tests fail on the 2.0.0 source and pass here. No public API chang
   `TimeoutException`, including one the action raised for its own reasons, such as
   an inner HttpClient timeout. Only its own deadline becomes a `TimeoutException` now
 
+### Docs
+
+- README package sizes were stale (the core said 21.5 KB, it is 25.5 KB), the
+  Carom.DependencyInjection row was missing, and the OpenTelemetry row still said
+  Carom does not emit on its own. The size tests allowed 40 KB and 100 KB, so they
+  could not catch the drift. They now fail past 28 KB core and 60 KB extensions
+
 ## [2.0.0] - 2026-09-03
 
 An adversarial audit of the retry, timeout, circuit breaker and bulkhead paths

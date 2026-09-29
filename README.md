@@ -15,21 +15,22 @@ Runs on .NET 10 and .NET 8. The core packages target `netstandard2.0`, so .NET F
 - **Zero Dependencies** (core packages)
 - **Zero Allocations** (0 bytes on the successful hot path, test-enforced)
 - **Safe by Default** (mandatory decorrelated jitter)
-- **Tiny Footprint** (21.5KB core, 53.5KB extensions)
+- **Tiny Footprint** (25.5KB core, 54KB extensions)
 - **Fully Composable** (all patterns work together)
 
 ## 📦 Packages
 
-Sizes are the Release-built assemblies. Tests keep the core and extensions figures honest.
+Sizes are the Release-built assemblies. Tests fail if the core grows past 28KB or the extensions past 60KB.
 
 | Package | Size | Purpose |
 |---------|------|---------|
-| **Carom** | 21.5KB | Core retry + timeout |
-| **Carom.Extensions** | 53.5KB | Circuit Breaker, Fallback, Bulkhead, Rate Limiting |
-| **Carom.Http** | 13KB | HTTP integration |
-| **Carom.AspNetCore** | 9KB | ASP.NET Core health checks |
-| **Carom.EntityFramework** | 10KB | EF Core retry |
-| **Carom.Telemetry.OpenTelemetry** | 7KB | OpenTelemetry instruments, called by your code (Carom does not emit automatically yet) |
+| **Carom** | 25.5KB | Core retry + timeout |
+| **Carom.Extensions** | 54KB | Circuit Breaker, Fallback, Bulkhead, Rate Limiting |
+| **Carom.Http** | 12.5KB | HTTP integration |
+| **Carom.DependencyInjection** | 21.5KB | Named resilience pipelines for `IServiceCollection` |
+| **Carom.AspNetCore** | 8.5KB | ASP.NET Core health checks |
+| **Carom.EntityFramework** | 9.5KB | EF Core retry |
+| **Carom.Telemetry.OpenTelemetry** | 9.5KB | OpenTelemetry metrics for retries, circuit opens and rejections, after one `CaromTelemetry.Subscribe()` call |
 
 ## 🚀 Quick Start
 
@@ -119,7 +120,7 @@ var apiResult = await CaromThrottleExtensions.ShotAsync(
 | **Bulkhead** | `Compartment` | Concurrency control |
 | **Rate Limiting** | `Throttle` | Token bucket algorithm |
 
-## �� Documentation
+## Documentation
 
 - [Security Policy](docs/SECURITY.md)
 - [Changelog](CHANGELOG.md)
@@ -147,7 +148,7 @@ Speed is not the pitch. Per successful call, both Carom and Polly cost nanosecon
 The claims we do make are measured (Apple M1, .NET 8, against Polly 8.4.2) and enforced by `tests/Carom.Tests/PublishedClaimsTests.cs`:
 
 - **Zero allocations on the successful hot path**: Carom 0 B per call. Polly v8 allocates 24 B per call, the Polly v7 API 248 B.
-- **Small on disk**: Carom.dll is 21.5 KB and Carom.Extensions.dll 53.5 KB. Polly.Core.dll (net8.0) is 237 KB.
+- **Small on disk**: Carom.dll is 25.5 KB and Carom.Extensions.dll 54 KB. Polly.Core.dll (net8.0) is 237 KB.
 - **Zero package dependencies on every target**: Polly.Core has none on net8.0 but needs four packages on netstandard2.0 and five on .NET Framework.
 
 Details and methodology in [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
