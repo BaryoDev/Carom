@@ -68,12 +68,16 @@ namespace Carom.DependencyInjection.Tests
                 .AddTimeout(TimeSpan.FromMilliseconds(100))
                 .Build();
 
-            await Assert.ThrowsAsync<TimeoutException>(() =>
+            var call = Assert.ThrowsAsync<TimeoutException>(() =>
                 pipeline.ExecuteAsync(async token =>
                 {
                     await Task.Delay(Timeout.Infinite, token);
                     return 1;
                 }));
+
+            // The action never ends on its own, so fail rather than hang if the deadline breaks.
+            Assert.Same(call, await Task.WhenAny(call, Task.Delay(TimeSpan.FromSeconds(30))));
+            await call;
         }
     }
 }
