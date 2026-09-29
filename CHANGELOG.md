@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.0.1] - 2026-09-29
 
-Four defects found in a second audit, each reproduced against 2.0.0 before it was
+Five defects found in a second audit, each reproduced against 2.0.0 before it was
 fixed. The new tests fail on the 2.0.0 source and pass here. No public API changes.
 
 ### Fixed - Carom.Http
@@ -34,6 +34,13 @@ fixed. The new tests fail on the 2.0.0 source and pass here. No public API chang
 - The timeout strategy reported any `OperationCanceledException` as a
   `TimeoutException`, including one the action raised for its own reasons, such as
   an inner HttpClient timeout. Only its own deadline becomes a `TimeoutException` now
+
+### Fixed - Carom.EntityFramework
+
+- `SaveChangesWithRetryAsync(Bounce)` handed `SaveChangesAsync` the caller's token, so
+  a `Bounce` timeout threw `TimeoutRejectedException` while the save kept running, and
+  could still commit after the caller was told it timed out. The save now gets the
+  attempt token and is cancelled with it
 
 ### Docs
 

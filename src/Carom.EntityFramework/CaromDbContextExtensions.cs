@@ -45,8 +45,9 @@ namespace Carom.EntityFramework
             Bounce bounce,
             CancellationToken cancellationToken = default)
         {
+            // The attempt token carries the Bounce timeout, so a timeout cancels the save itself.
             return await global::Carom.Carom.ShotAsync(
-                () => context.SaveChangesAsync(cancellationToken),
+                token => context.SaveChangesAsync(token),
                 bounce,
                 ct: cancellationToken).ConfigureAwait(false);
         }
