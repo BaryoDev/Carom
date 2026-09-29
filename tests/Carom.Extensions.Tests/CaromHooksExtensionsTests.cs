@@ -231,5 +231,43 @@ namespace Carom.Extensions.Tests
             }
         }
 
+        [Fact]
+        public async Task BulkheadRejected_DoesNotFire_WhenAQueuedCallerCancels()
+        {
+            // A caller that gives up while queued was not rejected by a full
+            // compartment. Counting it as a rejection inflates the bulkhead metric.
+            var key = "hooks-bulkhead-cancel-" + Guid.NewGuid();
+            var compartment = Compartment.ForResource(key)
+                .WithMaxConcurrency(1)
+                .WithQueueDepth(1)
+                .Build();
+
+            var prior = CaromHooks.OnBulkheadRejected;
+            var release = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+            try
+            {
+                var rejected = 0;
+                CaromHooks.OnBulkheadRejected = s =>
+                {
+                    if (s.ResourceKey == key) Interlocked.Increment(ref rejected);
+                };
+
+                var holder = compartment.ExecuteAsync(() => release.Task);
+
+                using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                    () => compartment.ExecuteAsync(() => Task.FromResult(1), cts.Token));
+
+                Assert.Equal(0, Volatile.Read(ref rejected));
+
+                release.SetResult(1);
+                await holder;
+            }
+            finally
+            {
+                release.TrySetResult(0);
+                CaromHooks.OnBulkheadRejected = prior;
+            }
+        }
     }
 }

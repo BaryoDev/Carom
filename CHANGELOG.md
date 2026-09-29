@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1] - 2026-09-29
+
+Four defects found in a second audit, each reproduced against 2.0.0 before it was
+fixed. The new tests fail on the 2.0.0 source and pass here. No public API changes.
+
+### Fixed - Carom.Http
+
+- `CaromHttpHandler` copied `Retries`, `BaseDelay` and `DisableJitter` out of its
+  `Bounce` and dropped the rest. `WithTimeout`, `WithMaxDelay` and `When` were
+  silently ignored: a 200 ms timeout against a 2 s server returned 200 OK after
+  2 s, and a 10 ms max delay on a 2 s base delay waited 4 s. The handler now
+  passes the whole `Bounce`, and the timeout cancels the send itself. With no
+  `When` predicate the transient-error classifier still applies
+
+### Fixed - Carom.Extensions
+
+- A caller that cancelled while queued for a bulkhead slot got
+  `CompartmentFullException` and raised `OnBulkheadRejected`, so telemetry
+  counted a rejection that never happened. It now gets
+  `OperationCanceledException`, and its queue place is freed
+
+### Fixed - Carom.DependencyInjection
+
+- The retry strategy handed the action the caller's token, not the attempt token,
+  so a `Bounce` timeout ended the call but left the action running with a token
+  that never fired
+- The timeout strategy reported any `OperationCanceledException` as a
+  `TimeoutException`, including one the action raised for its own reasons, such as
+  an inner HttpClient timeout. Only its own deadline becomes a `TimeoutException` now
+
 ## [2.0.0] - 2026-09-03
 
 An adversarial audit of the retry, timeout, circuit breaker and bulkhead paths
