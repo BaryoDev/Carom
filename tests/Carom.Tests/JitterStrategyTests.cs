@@ -129,5 +129,13 @@ namespace Carom.Tests
 
             Assert.False(a.SequenceEqual(b), "two threads produced identical jitter sequences");
         }
+
+        [Fact]
+        public void Zero_base_delay_with_a_huge_attempt_count_returns_zero_not_NaN()
+        {
+            var d = JitterStrategy.CalculateDelay(TimeSpan.Zero, TimeSpan.Zero, disableJitter: true, attempt: 2000);
+
+            Assert.Equal(TimeSpan.Zero, d);
+        }
     }
 }

@@ -17,6 +17,8 @@ permissions:
 
 jobs:
   publish:
+    # Dispatch from any other branch would build, test and push to NuGet.
+    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
 
     steps:

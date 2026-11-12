@@ -96,7 +96,13 @@ namespace Carom.Http
         {
             if (!RetryNonIdempotentRequests && !IsIdempotent(request.Method))
             {
-                return await base.SendAsync(request, cancellationToken).ConfigureAwait(false);
+                // Sent once, no retries, but the Bounce timeout still applies.
+                var once = Bounce.Times(0);
+                if (_config.Timeout is TimeSpan timeout) once = once.WithTimeout(timeout);
+                return await Carom.ShotAsync(
+                    token => base.SendAsync(request, token),
+                    once,
+                    cancellationToken).ConfigureAwait(false);
             }
 
             // Buffered before the first attempt, because every attempt re-sends this same request and

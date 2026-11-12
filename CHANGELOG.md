@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- The default `Cushion` failure predicate ignored `TimeoutRejectedException` because it derives
+  from `OperationCanceledException`, so a hanging dependency behind `Bounce.WithTimeout` never
+  opened the breaker. Timeouts now count as failures. Other cancellation is still ignored.
+- `CaromHttpHandler` sent POST and PATCH straight to the inner handler, so `Bounce.WithTimeout`
+  was silently dropped for them. They still skip retries, but the timeout now applies.
+- The `Carom.DependencyInjection` retry strategy retried `CircuitOpenException` with backoff
+  when it wrapped a circuit breaker. It now fails fast, like the Extensions path.
+- `JitterStrategy.CalculateDelay` returned NaN for a zero base delay with more than 1023
+  retries and jitter off, which threw `ArgumentException` from inside the catch block. The
+  exponent is now capped.
+- The publish workflow only runs from `master`.
+
 ## [2.0.1] - 2026-09-29
 
 Five defects found in a second audit, each reproduced against 2.0.0 before it was
