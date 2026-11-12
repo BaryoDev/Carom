@@ -74,7 +74,9 @@ The circuit opens as soon as 5 failures are recorded. `trackingLast` bounds how 
 failures are counted, and `WithinLast` expires them by age, so an old incident cannot
 combine with a fresh failure to trip the breaker. `When` decides which exceptions count
 as the dependency's fault: without it, a bug in your own calling code would open the
-circuit on a healthy service. Retries run inside the breaker, so one logical call
+circuit on a healthy service. The default counts everything except cancellation, but a
+`Bounce.WithTimeout` timeout (`TimeoutRejectedException`) counts as a failure, so a hanging
+dependency opens the breaker. Retries run inside the breaker, so one logical call
 records one outcome no matter how many attempts it took.
 
 ### Fallback

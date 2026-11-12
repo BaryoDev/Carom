@@ -79,5 +79,37 @@ namespace Carom.DependencyInjection.Tests
             Assert.Same(call, await Task.WhenAny(call, Task.Delay(TimeSpan.FromSeconds(30))));
             await call;
         }
+
+        [Fact]
+        public async Task Retry_outside_an_open_breaker_surfaces_CircuitOpenException_without_backoff()
+        {
+            var key = "pipeline-open-" + Guid.NewGuid();
+            var cushion = global::Carom.Extensions.Cushion.ForService(key)
+                .OpenAfter(failures: 1, trackingLast: 2)
+                .HalfOpenAfter(TimeSpan.FromMinutes(10));
+            var pipeline = new ResiliencePipelineBuilder("retry-over-breaker")
+                .AddRetry(Bounce.Times(3).WithDelay(TimeSpan.FromMilliseconds(50)).WithoutJitter())
+                .AddCircuitBreaker(key, cushion)
+                .Build();
+
+            var calls = 0;
+            Task<int> Fail(CancellationToken _)
+            {
+                Interlocked.Increment(ref calls);
+                throw new InvalidOperationException("down");
+            }
+
+            // Opens the breaker. The InvalidOperationException is retried, which is fine here: the
+            // breaker opens on the first failure and the retries then hit the open circuit.
+            await Assert.ThrowsAnyAsync<Exception>(() => pipeline.ExecuteAsync(Fail));
+            var before = Volatile.Read(ref calls);
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+
+            await Assert.ThrowsAsync<global::Carom.Extensions.CircuitOpenException>(() => pipeline.ExecuteAsync(Fail));
+
+            Assert.Equal(before, Volatile.Read(ref calls));
+            // Three retries at 50 ms base would take 350 ms if the open circuit were retried.
+            Assert.True(sw.Elapsed < TimeSpan.FromMilliseconds(250), $"backoff ran: {sw.Elapsed}");
+        }
     }
 }

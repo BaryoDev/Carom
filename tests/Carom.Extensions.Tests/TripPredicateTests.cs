@@ -110,5 +110,48 @@ namespace Carom.Extensions.Tests
             Assert.Throws<ArgumentNullException>(() =>
                 Cushion.ForService("car01-null-" + Guid.NewGuid()).When(null!));
         }
+
+        [Fact]
+        public async Task Default_predicate_counts_Bounce_timeouts_as_failures()
+        {
+            var key = "timeout-trips-" + Guid.NewGuid();
+            var cushion = Cushion.ForService(key)
+                .OpenAfter(failures: 2, trackingLast: 4)
+                .HalfOpenAfter(TimeSpan.FromMinutes(10));
+            var bounce = Bounce.Times(0).WithTimeout(TimeSpan.FromMilliseconds(50));
+
+            for (int i = 0; i < 2; i++)
+            {
+                await Assert.ThrowsAsync<TimeoutRejectedException>(() =>
+                    CaromCushionExtensions.ShotAsync<int>(async () =>
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(30));
+                        return 1;
+                    }, cushion, bounce));
+            }
+
+            Assert.Equal(CircuitState.Open, Cushion.GetState(key));
+        }
+
+        [Fact]
+        public async Task Default_predicate_ignores_caller_cancellation()
+        {
+            var key = "cancel-ignored-" + Guid.NewGuid();
+            var cushion = Cushion.ForService(key)
+                .OpenAfter(failures: 2, trackingLast: 4)
+                .HalfOpenAfter(TimeSpan.FromMinutes(10));
+            var bounce = Bounce.Times(0).WithTimeout(TimeSpan.FromSeconds(30));
+            using var cts = new System.Threading.CancellationTokenSource();
+            cts.Cancel();
+
+            for (int i = 0; i < 4; i++)
+            {
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+                    CaromCushionExtensions.ShotAsync<int>(
+                        () => throw new OperationCanceledException(cts.Token), cushion, bounce, cts.Token));
+            }
+
+            Assert.Equal(CircuitState.Closed, Cushion.GetState(key));
+        }
     }
 }

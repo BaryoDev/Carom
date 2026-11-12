@@ -158,10 +158,15 @@ namespace Carom.DependencyInjection
             _config = config;
         }
 
-        public T Execute<T>(Func<T> action) => Carom.Shot(action, _config);
+        // An open breaker is not worth retrying with backoff. Same default as the Extensions path.
+        private Bounce Effective => _config.ShouldBounce == null
+            ? _config.When(CaromCushionExtensions.DefaultShouldBounce)
+            : _config;
+
+        public T Execute<T>(Func<T> action) => Carom.Shot(action, Effective);
 
         public Task<T> ExecuteAsync<T>(Func<CancellationToken, Task<T>> action, CancellationToken ct) =>
-            Carom.ShotAsync(action, _config, ct);
+            Carom.ShotAsync(action, Effective, ct);
     }
 
     /// <summary>

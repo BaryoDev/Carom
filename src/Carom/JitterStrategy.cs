@@ -54,7 +54,8 @@ namespace Carom
             if (disableJitter)
             {
                 // Fixed exponential backoff: base * 2^attempt, capped
-                var multiplier = Math.Pow(2, attempt);
+                // Exponent capped so 2^attempt never reaches Infinity (0 * Infinity is NaN).
+                var multiplier = Math.Pow(2, Math.Min(attempt, 62));
                 var delayMs = baseDelay.TotalMilliseconds * multiplier;
                 return TimeSpan.FromMilliseconds(Math.Min(delayMs, capMs));
             }

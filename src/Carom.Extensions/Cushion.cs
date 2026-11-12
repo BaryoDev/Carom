@@ -40,13 +40,17 @@ namespace Carom.Extensions
 
         /// <summary>
         /// Predicate deciding whether an exception counts as a dependency failure.
-        /// Null means the default: everything except OperationCanceledException.
+        /// Null means the default: everything except OperationCanceledException,
+        /// with one exception to that: TimeoutRejectedException (the Bounce timeout) counts as a failure.
         /// </summary>
         public Func<Exception, bool>? ShouldTrip { get; }
 
-        // Caller-side exceptions must not open the circuit; cancellation is the
-        // caller giving up, not the dependency failing.
-        internal static bool DefaultShouldTrip(Exception ex) => ex is not OperationCanceledException;
+        // Caller-side exceptions must not open the circuit; plain cancellation is the
+        // caller giving up, not the dependency failing. TimeoutRejectedException derives
+        // from OperationCanceledException but is the library's own deadline firing on a
+        // slow dependency, so it counts.
+        internal static bool DefaultShouldTrip(Exception ex) =>
+            ex is TimeoutRejectedException || ex is not OperationCanceledException;
 
         // Test seam for the injectable monotonic clock (issue #8 pattern); null
         // means Stopwatch.GetTimestamp. Not part of the public API.
@@ -319,7 +323,8 @@ namespace Carom.Extensions
         /// Sets which exceptions count as dependency failures. Exceptions the
         /// predicate rejects are rethrown without touching the circuit, so a bug in
         /// calling code cannot open the circuit for a healthy dependency.
-        /// Default: everything except OperationCanceledException.
+        /// Default: everything except OperationCanceledException, but a Bounce
+        /// timeout (TimeoutRejectedException) counts as a failure.
         /// </summary>
         public CushionBuilder When(Func<Exception, bool> predicate)
         {
