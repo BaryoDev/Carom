@@ -88,7 +88,7 @@ namespace Carom.DependencyInjection.Tests
                 .OpenAfter(failures: 1, trackingLast: 2)
                 .HalfOpenAfter(TimeSpan.FromMinutes(10));
             var pipeline = new ResiliencePipelineBuilder("retry-over-breaker")
-                .AddRetry(Bounce.Times(3).WithDelay(TimeSpan.FromSeconds(5)).WithoutJitter())
+                .AddRetry(Bounce.Times(3).WithDelay(TimeSpan.FromMilliseconds(50)).WithoutJitter())
                 .AddCircuitBreaker(key, cushion)
                 .Build();
 
@@ -108,7 +108,8 @@ namespace Carom.DependencyInjection.Tests
             await Assert.ThrowsAsync<global::Carom.Extensions.CircuitOpenException>(() => pipeline.ExecuteAsync(Fail));
 
             Assert.Equal(before, Volatile.Read(ref calls));
-            Assert.True(sw.Elapsed < TimeSpan.FromSeconds(3), $"backoff ran: {sw.Elapsed}");
+            // Three retries at 50 ms base would take 350 ms if the open circuit were retried.
+            Assert.True(sw.Elapsed < TimeSpan.FromMilliseconds(250), $"backoff ran: {sw.Elapsed}");
         }
     }
 }

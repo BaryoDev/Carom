@@ -97,12 +97,7 @@ namespace Carom.Http
             if (!RetryNonIdempotentRequests && !IsIdempotent(request.Method))
             {
                 // Sent once, no retries, but the Bounce timeout still applies.
-                var once = Bounce.Times(0);
-                if (_config.Timeout is TimeSpan timeout) once = once.WithTimeout(timeout);
-                return await Carom.ShotAsync(
-                    token => base.SendAsync(request, token),
-                    once,
-                    cancellationToken).ConfigureAwait(false);
+                return await SendOnceAsync(request, cancellationToken).ConfigureAwait(false);
             }
 
             // Buffered before the first attempt, because every attempt re-sends this same request and
@@ -124,7 +119,7 @@ namespace Carom.Http
                     // Known to be too big, and nothing has touched the body yet, so it can still be
                     // sent exactly once. Retry is an optimisation; a large upload is a reason to skip
                     // it rather than to fail the call.
-                    return await base.SendAsync(request, cancellationToken).ConfigureAwait(false);
+                    return await SendOnceAsync(request, cancellationToken).ConfigureAwait(false);
                 }
 
                 // Unknown length, or known and within the bound. LoadIntoBufferAsync partially
@@ -163,6 +158,14 @@ namespace Carom.Http
                 },
                 effective,
                 cancellationToken).ConfigureAwait(false);
+        }
+
+        // One attempt, no retries, but the Bounce timeout still applies.
+        private Task<HttpResponseMessage> SendOnceAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var once = Bounce.Times(0);
+            if (_config.Timeout is TimeSpan timeout) once = once.WithTimeout(timeout);
+            return Carom.ShotAsync(token => base.SendAsync(request, token), once, cancellationToken);
         }
 
         /// <summary>

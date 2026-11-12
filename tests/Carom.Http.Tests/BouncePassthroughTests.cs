@@ -125,4 +125,21 @@ public class BouncePassthroughTests
         var winner = await Task.WhenAny(inner.SawCancellation.Task, Task.Delay(TimeSpan.FromSeconds(30)));
         Assert.Same(inner.SawCancellation.Task, winner);
     }
+
+    [Fact]
+    public async Task Oversized_body_still_gets_the_bounce_timeout()
+    {
+        var inner = new SlowHandler();
+        var bounce = Bounce.Times(3).WithDelay(TimeSpan.Zero).WithTimeout(TimeSpan.FromMilliseconds(200));
+        var handler = new CaromHttpHandler(inner, bounce) { MaxRetryBufferBytes = 4 };
+        using var client = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
+        using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+
+        var call = client.PutAsync("http://carom.test/", new ByteArrayContent(new byte[64]), cleanup.Token);
+        Assert.Same(call, await Task.WhenAny(call, Task.Delay(TimeSpan.FromSeconds(30))));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => call);
+
+        var winner = await Task.WhenAny(inner.SawCancellation.Task, Task.Delay(TimeSpan.FromSeconds(30)));
+        Assert.Same(inner.SawCancellation.Task, winner);
+    }
 }

@@ -7,13 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The default `Cushion` failure predicate now counts `TimeoutRejectedException` as a failure.
+  It derives from `OperationCanceledException`, which the default ignored, so a hanging
+  dependency behind `Bounce.WithTimeout` never opened the breaker. Breakers with the default
+  predicate that never opened on Bounce timeouts now will. Other cancellation is still ignored.
+
 ### Fixed
 
-- The default `Cushion` failure predicate ignored `TimeoutRejectedException` because it derives
-  from `OperationCanceledException`, so a hanging dependency behind `Bounce.WithTimeout` never
-  opened the breaker. Timeouts now count as failures. Other cancellation is still ignored.
-- `CaromHttpHandler` sent POST and PATCH straight to the inner handler, so `Bounce.WithTimeout`
-  was silently dropped for them. They still skip retries, but the timeout now applies.
+- `CaromHttpHandler` sent POST and PATCH, and requests with a declared body over
+  `MaxRetryBufferBytes`, straight to the inner handler, so `Bounce.WithTimeout` was silently
+  dropped for them. They still skip retries, but the timeout now applies.
 - The `Carom.DependencyInjection` retry strategy retried `CircuitOpenException` with backoff
   when it wrapped a circuit breaker. It now fails fast, like the Extensions path.
 - `JitterStrategy.CalculateDelay` returned NaN for a zero base delay with more than 1023
