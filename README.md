@@ -65,10 +65,18 @@ var cushion = Cushion.ForService("payment-api")
     .When(ex => ex is HttpRequestException)
     .HalfOpenAfter(TimeSpan.FromSeconds(30));
 
+var bounce = Bounce.Times(2).WithTimeout(TimeSpan.FromSeconds(5));
+
 var payment = await CaromCushionExtensions.ShotAsync(
-    () => paymentApi.Charge(), 
-    cushion);
+    ct => paymentApi.Charge(ct),
+    cushion,
+    bounce);
 ```
+
+The `ct` reaches the call, so the Bounce timeout stops it instead of leaving it running.
+`cushion.ExecuteAsync` and `Execute` guard a call with no retry, `Cushion.Reset(key)` closes a
+breaker, `Cushion.MaxBreakers` sizes the store, and `WithClock` drives half-open in tests.
+See [docs/circuit-breaker.md](docs/circuit-breaker.md).
 
 The circuit opens as soon as 5 failures are recorded. `trackingLast` bounds how far back
 failures are counted, and `WithinLast` expires them by age, so an old incident cannot

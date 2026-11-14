@@ -87,5 +87,47 @@ namespace Carom.Extensions
             var effective = bounce.ShouldBounce == null ? bounce.When(DefaultShouldBounce) : bounce;
             return cushion.ExecuteAsync(() => global::Carom.Carom.ShotAsync(action, effective, ct));
         }
+
+        /// <summary>
+        /// Executes a cancellable asynchronous shot with circuit breaker protection.
+        /// The action receives the attempt token, which is cancelled when
+        /// <paramref name="ct"/> is cancelled. This overload has no timeout; use the Bounce overload for one.
+        /// </summary>
+        public static Task<T> ShotAsync<T>(
+            Func<CancellationToken, Task<T>> action,
+            Cushion cushion,
+            int retries = 3,
+            TimeSpan? baseDelay = null,
+            Func<Exception, bool>? shouldBounce = null,
+            bool disableJitter = false,
+            CancellationToken ct = default)
+        {
+            if (action == null) throw new ArgumentNullException(nameof(action));
+            return cushion.ExecuteAsync(() => global::Carom.Carom.ShotAsync(
+                action,
+                retries,
+                baseDelay,
+                timeout: null,
+                shouldBounce ?? DefaultShouldBounce,
+                shouldRetryResult: null,
+                disableJitter,
+                ct));
+        }
+
+        /// <summary>
+        /// Executes a cancellable asynchronous shot with circuit breaker and Bounce configuration.
+        /// The action receives the attempt token, which is cancelled on the Bounce timeout or
+        /// when <paramref name="ct"/> is cancelled.
+        /// </summary>
+        public static Task<T> ShotAsync<T>(
+            Func<CancellationToken, Task<T>> action,
+            Cushion cushion,
+            Bounce bounce,
+            CancellationToken ct = default)
+        {
+            if (action == null) throw new ArgumentNullException(nameof(action));
+            var effective = bounce.ShouldBounce == null ? bounce.When(DefaultShouldBounce) : bounce;
+            return cushion.ExecuteAsync(() => global::Carom.Carom.ShotAsync(action, effective, ct));
+        }
     }
 }
