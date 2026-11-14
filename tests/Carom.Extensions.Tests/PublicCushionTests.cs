@@ -32,17 +32,18 @@ namespace Carom.Extensions.Tests
         {
             var cushion = Basic(Key("token"));
             var bounce = Bounce.Times(0).WithTimeout(TimeSpan.FromMilliseconds(50));
-            var cancelled = false;
+            var cancelled = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
             await Assert.ThrowsAsync<TimeoutRejectedException>(() =>
                 CaromCushionExtensions.ShotAsync<int>(async ct =>
                 {
                     try { await Task.Delay(TimeSpan.FromSeconds(30), ct); }
-                    catch (OperationCanceledException) { cancelled = true; throw; }
+                    catch (OperationCanceledException) { cancelled.TrySetResult(true); throw; }
                     return 1;
                 }, cushion, bounce));
 
-            Assert.True(cancelled);
+            var done = await Task.WhenAny(cancelled.Task, Task.Delay(TimeSpan.FromSeconds(10)));
+            Assert.Same(cancelled.Task, done);
         }
 
         [Fact]
@@ -50,14 +51,21 @@ namespace Carom.Extensions.Tests
         {
             var cushion = Basic(Key("token-retries"));
             using var cts = new CancellationTokenSource();
-            CancellationToken seen = default;
+            var started = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var sawCancel = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-            var result = await CaromCushionExtensions.ShotAsync<int>(ct => { seen = ct; return Task.FromResult(7); },
-                cushion, retries: 0, ct: cts.Token);
+            var call = CaromCushionExtensions.ShotAsync<int>(async ct =>
+            {
+                started.TrySetResult(true);
+                try { await Task.Delay(TimeSpan.FromSeconds(30), ct); }
+                catch (OperationCanceledException) { sawCancel.TrySetResult(true); throw; }
+                return 1;
+            }, cushion, retries: 0, ct: cts.Token);
 
-            Assert.Equal(7, result);
+            Assert.Same(started.Task, await Task.WhenAny(started.Task, Task.Delay(TimeSpan.FromSeconds(10))));
             cts.Cancel();
-            Assert.True(seen.IsCancellationRequested);
+            Assert.Same(sawCancel.Task, await Task.WhenAny(sawCancel.Task, Task.Delay(TimeSpan.FromSeconds(10))));
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => call);
         }
 
         [Fact]

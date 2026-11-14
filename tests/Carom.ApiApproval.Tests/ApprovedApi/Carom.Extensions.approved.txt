@@ -14,8 +14,8 @@ namespace Carom.Extensions
         public static T Shot<T>(System.Func<T> action, Carom.Extensions.Cushion cushion, Carom.Bounce bounce) { }
         public static T Shot<T>(System.Func<T> action, Carom.Extensions.Cushion cushion, int retries = 3, System.TimeSpan? baseDelay = default, System.Func<System.Exception, bool>? shouldBounce = null, bool disableJitter = false) { }
         public static System.Threading.Tasks.Task<T> ShotAsync<T>(System.Func<System.Threading.Tasks.Task<T>> action, Carom.Extensions.Cushion cushion, Carom.Bounce bounce, System.Threading.CancellationToken ct = default) { }
-        public static System.Threading.Tasks.Task<T> ShotAsync<T>(System.Func<System.Threading.Tasks.Task<T>> action, Carom.Extensions.Cushion cushion, int retries = 3, System.TimeSpan? baseDelay = default, System.Func<System.Exception, bool>? shouldBounce = null, bool disableJitter = false, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task<T> ShotAsync<T>(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<T>> action, Carom.Extensions.Cushion cushion, Carom.Bounce bounce, System.Threading.CancellationToken ct = default) { }
+        public static System.Threading.Tasks.Task<T> ShotAsync<T>(System.Func<System.Threading.Tasks.Task<T>> action, Carom.Extensions.Cushion cushion, int retries = 3, System.TimeSpan? baseDelay = default, System.Func<System.Exception, bool>? shouldBounce = null, bool disableJitter = false, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task<T> ShotAsync<T>(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<T>> action, Carom.Extensions.Cushion cushion, int retries = 3, System.TimeSpan? baseDelay = default, System.Func<System.Exception, bool>? shouldBounce = null, bool disableJitter = false, System.Threading.CancellationToken ct = default) { }
     }
     public static class CaromFallbackExtensions
@@ -82,10 +82,10 @@ namespace Carom.Extensions
         public int SamplingWindow { get; }
         public string ServiceKey { get; }
         public System.Func<System.Exception, bool>? ShouldTrip { get; }
+        public static int MaxBreakers { get; set; }
         public T Execute<T>(System.Func<T> action) { }
         public System.Threading.Tasks.Task<T> ExecuteAsync<T>(System.Func<System.Threading.Tasks.Task<T>> action) { }
         public System.Threading.Tasks.Task<T> ExecuteAsync<T>(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<T>> action, System.Threading.CancellationToken ct = default) { }
-        public static int MaxBreakers { get; set; }
         public static Carom.Extensions.CushionBuilder ForService(string serviceKey) { }
         public static Carom.Extensions.CircuitState? GetState(string serviceKey) { }
         public static bool Reset(string serviceKey) { }
