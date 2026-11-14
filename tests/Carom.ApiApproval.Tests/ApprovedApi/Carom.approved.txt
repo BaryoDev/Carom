@@ -12,6 +12,7 @@ namespace Carom
         public System.TimeSpan? Timeout { get; }
         public Carom.Bounce When(System.Func<System.Exception, bool> predicate) { }
         public Carom.Bounce WithDelay(System.TimeSpan delay) { }
+        public Carom.Bounce WithDelayHint(System.Func<System.Exception, System.TimeSpan?> hint) { }
         public Carom.Bounce WithMaxDelay(System.TimeSpan maxDelay) { }
         public Carom.Bounce WithTimeout(System.TimeSpan timeout) { }
         public Carom.Bounce WithoutJitter() { }
@@ -32,6 +33,7 @@ namespace Carom
         public Carom.Bounce<T> When(System.Func<System.Exception, bool> predicate) { }
         public Carom.Bounce<T> WhenResult(System.Func<T, bool> predicate) { }
         public Carom.Bounce<T> WithDelay(System.TimeSpan delay) { }
+        public Carom.Bounce<T> WithDelayHint(System.Func<System.Exception, System.TimeSpan?> hint) { }
         public Carom.Bounce<T> WithMaxDelay(System.TimeSpan maxDelay) { }
         public Carom.Bounce<T> WithTimeout(System.TimeSpan timeout) { }
         public Carom.Bounce<T> WithoutJitter() { }

@@ -93,6 +93,12 @@ namespace Carom
         /// <summary>Raised when a rate limiter rejects a call.</summary>
         public static Action<RateLimitRejectedSignal>? OnRateLimitRejected { get; set; }
 
+        internal static void Raise(int attempt, TimeSpan delay, Exception? cause)
+        {
+            var onRetry = OnRetry;
+            if (onRetry != null) Invoke(onRetry, new RetrySignal(attempt, delay, cause?.GetType().Name));
+        }
+
         /// <summary>
         /// Invokes a hook without letting it break the path it observes. Raises happen inside
         /// catch blocks, so a subscriber that throws would replace the caller's exception and

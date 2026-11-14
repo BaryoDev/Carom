@@ -15,7 +15,7 @@ Runs on .NET 10 and .NET 8. The core packages target `netstandard2.0`, so .NET F
 - **Zero Dependencies** (core packages)
 - **Zero Allocations** (0 bytes on the successful hot path, test-enforced)
 - **Safe by Default** (mandatory decorrelated jitter)
-- **Tiny Footprint** (25.5KB core, 54KB extensions)
+- **Tiny Footprint** (27KB core, 59.5KB extensions)
 - **Fully Composable** (all patterns work together)
 
 ## 📦 Packages
@@ -24,8 +24,8 @@ Sizes are the Release-built assemblies. Tests fail if the core grows past 28KB o
 
 | Package | Size | Purpose |
 |---------|------|---------|
-| **Carom** | 25.5KB | Core retry + timeout |
-| **Carom.Extensions** | 54KB | Circuit Breaker, Fallback, Bulkhead, Rate Limiting |
+| **Carom** | 27KB | Core retry + timeout |
+| **Carom.Extensions** | 59.5KB | Circuit Breaker, Fallback, Bulkhead, Rate Limiting |
 | **Carom.Http** | 12.5KB | HTTP integration |
 | **Carom.DependencyInjection** | 21.5KB | Named resilience pipelines for `IServiceCollection` |
 | **Carom.AspNetCore** | 8.5KB | ASP.NET Core health checks |
@@ -43,16 +43,61 @@ dotnet add package Carom.Extensions
 
 ### Basic Usage
 
+<!-- sample: basic-usage -->
 ```csharp
 using Carom;
+using Retry = Carom.Carom;
 
 // Simple retry with exponential backoff
-var result = await Carom.ShotAsync(() => api.CallAsync(), retries: 3);
+var result = await Retry.ShotAsync(() => api.CallAsync(), retries: 3);
 
 // With timeout
 var bounce = Bounce.Times(5).WithTimeout(TimeSpan.FromSeconds(30));
-var data = await Carom.ShotAsync(() => apiClient.FetchAsync(), bounce);
+var data = await Retry.ShotAsync(() => apiClient.FetchAsync(), bounce);
 ```
+
+The class `Carom` shares its name with the namespace, so with `using Carom;` at the top of a
+file a bare `Carom.ShotAsync` does not resolve. The alias above fixes that, and
+`global::Carom.Carom.ShotAsync` works too. The class keeps its name.
+
+### Per-try timeout and Retry-After
+
+`WithTimeout` bounds the whole call. To bound each try as well, use `CaromAttemptTimeoutExtensions`
+from `Carom.Extensions`: a try that runs out is cancelled and fails with a
+`TimeoutRejectedException`, which is retried like any other failure. The overall timeout and
+cancellation still end the call. It needs a `Func<CancellationToken, Task>` action. An action
+that ignores its token keeps running after its try times out, so the next try can overlap it;
+pass the token on to whatever the action calls.
+
+<!-- sample: attempt-timeout -->
+```csharp
+using Carom.Extensions;
+
+// Each try gets 2 seconds, the whole call gets 10
+var bounce = Bounce.Times(3).WithTimeout(TimeSpan.FromSeconds(10));
+
+var data = await CaromAttemptTimeoutExtensions.ShotAsync(
+    ct => apiClient.FetchAsync(ct), bounce, attemptTimeout: TimeSpan.FromSeconds(2));
+```
+
+`WithDelayHint` lets the failure name the wait before the next retry, such as a server's
+`Retry-After`. The hint replaces the computed jitter for that retry, is clamped to
+`MaxDelay`, and is still cut short by the overall timeout and by cancellation. Return null
+to keep the computed backoff. The hint applies to retries after an exception only, not to
+`WhenResult` retries.
+
+<!-- sample: delay-hint -->
+```csharp
+// Wait the Retry-After the server sent, up to MaxDelay
+var bounce = Bounce.Times(3)
+    .WithMaxDelay(TimeSpan.FromSeconds(60))
+    .WithDelayHint(ex => ex is RateLimitedException limited ? limited.RetryAfter : null);
+
+var data = await Retry.ShotAsync(() => apiClient.FetchAsync(), bounce);
+```
+
+These samples are compiled by `tests/Carom.ReadmeSamples.Tests`, which also fails when the
+README text drifts from the compiled copy.
 
 ### Circuit Breaker
 
@@ -158,7 +203,7 @@ Speed is not the pitch. Per successful call, both Carom and Polly cost nanosecon
 The claims we do make are measured (Apple M1, .NET 8, against Polly 8.4.2) and enforced by `tests/Carom.Tests/PublishedClaimsTests.cs`:
 
 - **Zero allocations on the successful hot path**: Carom 0 B per call. Polly v8 allocates 24 B per call, the Polly v7 API 248 B.
-- **Small on disk**: Carom.dll is 25.5 KB and Carom.Extensions.dll 54 KB. Polly.Core.dll (net8.0) is 237 KB.
+- **Small on disk**: Carom.dll is 27 KB and Carom.Extensions.dll 59.5 KB. Polly.Core.dll (net8.0) is 237 KB.
 - **Zero package dependencies on every target**: Polly.Core has none on net8.0 but needs four packages on netstandard2.0 and five on .NET Framework.
 
 Details and methodology in [docs/BENCHMARKS.md](docs/BENCHMARKS.md).

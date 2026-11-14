@@ -2,6 +2,12 @@
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("Carom.Extensions.Tests")]
 namespace Carom.Extensions
 {
+    public static class CaromAttemptTimeoutExtensions
+    {
+        public static System.Threading.Tasks.Task ShotAsync(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task> action, Carom.Bounce bounce, System.TimeSpan attemptTimeout, System.Threading.CancellationToken ct = default) { }
+        public static System.Threading.Tasks.Task<T> ShotAsync<T>(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<T>> action, Carom.Bounce bounce, System.TimeSpan attemptTimeout, System.Threading.CancellationToken ct = default) { }
+        public static System.Threading.Tasks.Task<T> ShotAsync<T>(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<T>> action, Carom.Bounce<T> bounce, System.TimeSpan attemptTimeout, System.Threading.CancellationToken ct = default) { }
+    }
     public static class CaromCompartmentExtensions
     {
         public static T Shot<T>(System.Func<T> action, Carom.Extensions.Compartment compartment, Carom.Bounce bounce) { }

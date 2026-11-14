@@ -64,14 +64,14 @@ namespace Carom
             Func<Exception, bool>? shouldBounce,
             Func<T, bool>? shouldRetryResult,
             bool disableJitter,
-            TimeSpan? maxDelay)
+            TimeSpan? maxDelay,
+            Opts? extras = null)
         {
             if (action == null) throw new ArgumentNullException(nameof(action));
             retries = Math.Max(0, retries);
             var delay = baseDelay ?? JitterStrategy.DefaultBaseDelay;
             var previousDelay = delay;
             Exception? lastException = null;
-            T lastResult = default!;
 
             for (int attempt = 0; attempt <= retries; attempt++)
             {
@@ -82,7 +82,6 @@ namespace Carom
                     // Check if we should retry based on result
                     if (shouldRetryResult != null && shouldRetryResult(result))
                     {
-                        lastResult = result;
 
                         // Check if we have retries left
                         if (attempt >= retries)
@@ -92,8 +91,7 @@ namespace Carom
 
                         // Calculate and wait for the next delay
                         var nextDelay = JitterStrategy.CalculateDelay(delay, previousDelay, disableJitter, attempt + 1, maxDelay);
-                        var onResultRetry = CaromHooks.OnRetry;
-                        if (onResultRetry != null) CaromHooks.Invoke(onResultRetry, new RetrySignal(attempt + 1, nextDelay, null));
+                        CaromHooks.Raise(attempt + 1, nextDelay, null);
                         Thread.Sleep(nextDelay);
                         previousDelay = nextDelay;
                         continue;
@@ -119,11 +117,11 @@ namespace Carom
                     }
 
                     // Calculate and wait for the next delay
-                    var nextDelay = JitterStrategy.CalculateDelay(delay, previousDelay, disableJitter, attempt + 1, maxDelay);
-                    var onRetry = CaromHooks.OnRetry;
-                    if (onRetry != null) CaromHooks.Invoke(onRetry, new RetrySignal(attempt + 1, nextDelay, ex.GetType().Name));
+                    var hinted = Hinted(extras, ex, maxDelay, out var nextDelay);
+                    if (!hinted) nextDelay = JitterStrategy.CalculateDelay(delay, previousDelay, disableJitter, attempt + 1, maxDelay);
+                    CaromHooks.Raise(attempt + 1, nextDelay, ex);
                     Thread.Sleep(nextDelay);
-                    previousDelay = nextDelay;
+                    if (!hinted) previousDelay = nextDelay;
                 }
             }
 
@@ -147,7 +145,8 @@ namespace Carom
             TimeSpan? baseDelay,
             Func<Exception, bool>? shouldBounce,
             bool disableJitter,
-            TimeSpan? maxDelay)
+            TimeSpan? maxDelay,
+            Opts? extras = null)
         {
             if (action == null) throw new ArgumentNullException(nameof(action));
             retries = Math.Max(0, retries);
@@ -169,11 +168,11 @@ namespace Carom
                     if (!ShouldRetryException(ex, shouldBounce)) throw;
                     if (attempt >= retries) throw;
 
-                    var nextDelay = JitterStrategy.CalculateDelay(delay, previousDelay, disableJitter, attempt + 1, maxDelay);
-                    var onRetry = CaromHooks.OnRetry;
-                    if (onRetry != null) CaromHooks.Invoke(onRetry, new RetrySignal(attempt + 1, nextDelay, ex.GetType().Name));
+                    var hinted = Hinted(extras, ex, maxDelay, out var nextDelay);
+                    if (!hinted) nextDelay = JitterStrategy.CalculateDelay(delay, previousDelay, disableJitter, attempt + 1, maxDelay);
+                    CaromHooks.Raise(attempt + 1, nextDelay, ex);
                     Thread.Sleep(nextDelay);
-                    previousDelay = nextDelay;
+                    if (!hinted) previousDelay = nextDelay;
                 }
             }
 
@@ -193,7 +192,7 @@ namespace Carom
         public static T Shot<T>(Func<T> action, Bounce bounce)
         {
             ThrowIfTimeoutOnSyncPath(bounce.Timeout);
-            return ShotCore(action, bounce.Retries, bounce.BaseDelay, bounce.ShouldBounce, shouldRetryResult: null, bounce.DisableJitter, bounce.MaxDelay);
+            return ShotCore(action, bounce.Retries, bounce.BaseDelay, bounce.ShouldBounce, shouldRetryResult: null, bounce.DisableJitter, bounce.MaxDelay, bounce._o);
         }
 
         /// <summary>
@@ -209,7 +208,7 @@ namespace Carom
         public static T Shot<T>(Func<T> action, Bounce<T> bounce)
         {
             ThrowIfTimeoutOnSyncPath(bounce.Timeout);
-            return ShotCore(action, bounce.Retries, bounce.BaseDelay, bounce.ShouldBounce, bounce.ShouldRetryResult, bounce.DisableJitter, bounce.MaxDelay);
+            return ShotCore(action, bounce.Retries, bounce.BaseDelay, bounce.ShouldBounce, bounce.ShouldRetryResult, bounce.DisableJitter, bounce.MaxDelay, bounce._o);
         }
 
         /// <summary>
@@ -223,7 +222,7 @@ namespace Carom
         public static void Shot(Action action, Bounce bounce)
         {
             ThrowIfTimeoutOnSyncPath(bounce.Timeout);
-            ShotCore(action, bounce.Retries, bounce.BaseDelay, bounce.ShouldBounce, bounce.DisableJitter, bounce.MaxDelay);
+            ShotCore(action, bounce.Retries, bounce.BaseDelay, bounce.ShouldBounce, bounce.DisableJitter, bounce.MaxDelay, bounce._o);
         }
 
         /// <summary>
@@ -362,7 +361,8 @@ namespace Carom
             Func<T, bool>? shouldRetryResult,
             bool disableJitter,
             CancellationToken ct,
-            TimeSpan? maxDelay = null)
+            TimeSpan? maxDelay = null,
+            Opts? extras = null)
         {
             if (timeout.HasValue && timeout.Value <= TimeSpan.Zero)
                 throw new ArgumentOutOfRangeException(nameof(timeout), "Timeout must be positive");
@@ -384,7 +384,6 @@ namespace Carom
             var delay = baseDelay ?? JitterStrategy.DefaultBaseDelay;
             var previousDelay = delay;
             Exception? lastException = null;
-            T lastResult = default!;
 
             for (int attempt = 0; attempt <= retries; attempt++)
             {
@@ -392,8 +391,8 @@ namespace Carom
 
                 try
                 {
-                    Task<T> task = ctAction != null ? ctAction(effectiveCt) : action!();
                     T result;
+                    Task<T> task = ctAction != null ? ctAction(effectiveCt) : action!();
 
                     // Only use WhenAny pattern if we have a cancellation mechanism
                     // This prevents Task.Delay(-1, ct) from leaking when ct is never cancelled
@@ -421,7 +420,6 @@ namespace Carom
                     // Check if we should retry based on result
                     if (shouldRetryResult != null && shouldRetryResult(result))
                     {
-                        lastResult = result;
 
                         // Check if we have retries left
                         if (attempt >= retries)
@@ -431,8 +429,7 @@ namespace Carom
 
                         // Calculate and wait for the next delay
                         var nextDelay = JitterStrategy.CalculateDelay(delay, previousDelay, disableJitter, attempt + 1, maxDelay);
-                        var onResultRetry = CaromHooks.OnRetry;
-                        if (onResultRetry != null) CaromHooks.Invoke(onResultRetry, new RetrySignal(attempt + 1, nextDelay, null));
+                        CaromHooks.Raise(attempt + 1, nextDelay, null);
                         await Task.Delay(nextDelay, effectiveCt).ConfigureAwait(false);
                         previousDelay = nextDelay;
                         continue;
@@ -465,11 +462,11 @@ namespace Carom
                     }
 
                     // Calculate and wait for the next delay
-                    var nextDelay = JitterStrategy.CalculateDelay(delay, previousDelay, disableJitter, attempt + 1, maxDelay);
-                    var onRetry = CaromHooks.OnRetry;
-                    if (onRetry != null) CaromHooks.Invoke(onRetry, new RetrySignal(attempt + 1, nextDelay, ex.GetType().Name));
-                    await BackoffDelayAsync(nextDelay, effectiveCt, timeout, ct).ConfigureAwait(false);
-                    previousDelay = nextDelay;
+                    var hinted = Hinted(extras, ex, maxDelay, out var nextDelay);
+                    if (!hinted) nextDelay = JitterStrategy.CalculateDelay(delay, previousDelay, disableJitter, attempt + 1, maxDelay);
+                    CaromHooks.Raise(attempt + 1, nextDelay, ex);
+                    await BackoffDelayAsync(nextDelay, effectiveCt, timeout, ct, extras).ConfigureAwait(false);
+                    if (!hinted) previousDelay = nextDelay;
                 }
             }
 
@@ -537,7 +534,8 @@ namespace Carom
             Func<Exception, bool>? shouldBounce,
             bool disableJitter,
             CancellationToken ct,
-            TimeSpan? maxDelay = null)
+            TimeSpan? maxDelay = null,
+            Opts? extras = null)
         {
             if (timeout.HasValue && timeout.Value <= TimeSpan.Zero)
                 throw new ArgumentOutOfRangeException(nameof(timeout), "Timeout must be positive");
@@ -604,11 +602,11 @@ namespace Carom
                     if (!ShouldRetryException(ex, shouldBounce)) throw;
                     if (attempt >= retries) throw;
 
-                    var nextDelay = JitterStrategy.CalculateDelay(delay, previousDelay, disableJitter, attempt + 1, maxDelay);
-                    var onRetry = CaromHooks.OnRetry;
-                    if (onRetry != null) CaromHooks.Invoke(onRetry, new RetrySignal(attempt + 1, nextDelay, ex.GetType().Name));
-                    await BackoffDelayAsync(nextDelay, effectiveCt, timeout, ct).ConfigureAwait(false);
-                    previousDelay = nextDelay;
+                    var hinted = Hinted(extras, ex, maxDelay, out var nextDelay);
+                    if (!hinted) nextDelay = JitterStrategy.CalculateDelay(delay, previousDelay, disableJitter, attempt + 1, maxDelay);
+                    CaromHooks.Raise(attempt + 1, nextDelay, ex);
+                    await BackoffDelayAsync(nextDelay, effectiveCt, timeout, ct, extras).ConfigureAwait(false);
+                    if (!hinted) previousDelay = nextDelay;
                 }
             }
 
@@ -636,11 +634,13 @@ namespace Carom
             TimeSpan nextDelay,
             CancellationToken effectiveCt,
             TimeSpan? timeout,
-            CancellationToken ct)
+            CancellationToken ct,
+            Opts? extras = null)
         {
             try
             {
-                await Task.Delay(nextDelay, effectiveCt).ConfigureAwait(false);
+                var sleep = extras?.Sleep;
+                await (sleep != null ? sleep(nextDelay, effectiveCt) : Task.Delay(nextDelay, effectiveCt)).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (effectiveCt.IsCancellationRequested)
             {
@@ -648,6 +648,34 @@ namespace Carom
                     throw new TimeoutRejectedException(timeout.Value);
                 throw;
             }
+        }
+
+        /// <summary>
+        /// Asks the delay hint for the wait before the next retry. A hint is clamped to
+        /// [0, MaxDelay]. Returns false (use the computed backoff) when there is no hint,
+        /// it returns null, or it throws.
+        /// </summary>
+        private static bool Hinted(Opts? extras, Exception ex, TimeSpan? maxDelay, out TimeSpan delay)
+        {
+            delay = TimeSpan.Zero;
+            var hint = extras?.Hint;
+            if (hint == null) return false;
+
+            try
+            {
+                var hinted = hint(ex);
+                if (hinted == null) return false;
+                delay = hinted.Value;
+            }
+            catch
+            {
+                return false;
+            }
+
+            var cap = maxDelay ?? JitterStrategy.DefaultMaxDelay;
+            if (delay > cap) delay = cap;
+            if (delay < TimeSpan.Zero) delay = TimeSpan.Zero;
+            return true;
         }
 
         /// <summary>
@@ -675,7 +703,7 @@ namespace Carom
         public static Task<T> ShotAsync<T>(Func<Task<T>> action, Bounce bounce, CancellationToken ct = default)
         {
             if (action == null) throw new ArgumentNullException(nameof(action));
-            return ShotAsyncCore(action, ctAction: null, bounce.Retries, bounce.BaseDelay, bounce.Timeout, bounce.ShouldBounce, shouldRetryResult: null, bounce.DisableJitter, ct, bounce.MaxDelay);
+            return ShotAsyncCore(action, ctAction: null, bounce.Retries, bounce.BaseDelay, bounce.Timeout, bounce.ShouldBounce, shouldRetryResult: null, bounce.DisableJitter, ct, bounce.MaxDelay, bounce._o);
         }
 
         /// <summary>
@@ -689,7 +717,7 @@ namespace Carom
         public static Task<T> ShotAsync<T>(Func<Task<T>> action, Bounce<T> bounce, CancellationToken ct = default)
         {
             if (action == null) throw new ArgumentNullException(nameof(action));
-            return ShotAsyncCore(action, ctAction: null, bounce.Retries, bounce.BaseDelay, bounce.Timeout, bounce.ShouldBounce, bounce.ShouldRetryResult, bounce.DisableJitter, ct, bounce.MaxDelay);
+            return ShotAsyncCore(action, ctAction: null, bounce.Retries, bounce.BaseDelay, bounce.Timeout, bounce.ShouldBounce, bounce.ShouldRetryResult, bounce.DisableJitter, ct, bounce.MaxDelay, bounce._o);
         }
 
         /// <summary>
@@ -701,7 +729,7 @@ namespace Carom
         public static Task ShotAsync(Func<Task> action, Bounce bounce, CancellationToken ct = default)
         {
             if (action == null) throw new ArgumentNullException(nameof(action));
-            return ShotAsyncCore(action, ctAction: null, bounce.Retries, bounce.BaseDelay, bounce.Timeout, bounce.ShouldBounce, bounce.DisableJitter, ct, bounce.MaxDelay);
+            return ShotAsyncCore(action, ctAction: null, bounce.Retries, bounce.BaseDelay, bounce.Timeout, bounce.ShouldBounce, bounce.DisableJitter, ct, bounce.MaxDelay, bounce._o);
         }
 
         /// <summary>
@@ -716,7 +744,7 @@ namespace Carom
         public static Task<T> ShotAsync<T>(Func<CancellationToken, Task<T>> action, Bounce bounce, CancellationToken ct = default)
         {
             if (action == null) throw new ArgumentNullException(nameof(action));
-            return ShotAsyncCore(action: null, ctAction: action, bounce.Retries, bounce.BaseDelay, bounce.Timeout, bounce.ShouldBounce, shouldRetryResult: null, bounce.DisableJitter, ct, bounce.MaxDelay);
+            return ShotAsyncCore(action: null, ctAction: action, bounce.Retries, bounce.BaseDelay, bounce.Timeout, bounce.ShouldBounce, shouldRetryResult: null, bounce.DisableJitter, ct, bounce.MaxDelay, bounce._o);
         }
 
         /// <summary>
@@ -731,7 +759,7 @@ namespace Carom
         public static Task<T> ShotAsync<T>(Func<CancellationToken, Task<T>> action, Bounce<T> bounce, CancellationToken ct = default)
         {
             if (action == null) throw new ArgumentNullException(nameof(action));
-            return ShotAsyncCore(action: null, ctAction: action, bounce.Retries, bounce.BaseDelay, bounce.Timeout, bounce.ShouldBounce, bounce.ShouldRetryResult, bounce.DisableJitter, ct, bounce.MaxDelay);
+            return ShotAsyncCore(action: null, ctAction: action, bounce.Retries, bounce.BaseDelay, bounce.Timeout, bounce.ShouldBounce, bounce.ShouldRetryResult, bounce.DisableJitter, ct, bounce.MaxDelay, bounce._o);
         }
 
         /// <summary>
@@ -744,7 +772,7 @@ namespace Carom
         public static Task ShotAsync(Func<CancellationToken, Task> action, Bounce bounce, CancellationToken ct = default)
         {
             if (action == null) throw new ArgumentNullException(nameof(action));
-            return ShotAsyncCore(action: null, ctAction: action, bounce.Retries, bounce.BaseDelay, bounce.Timeout, bounce.ShouldBounce, bounce.DisableJitter, ct, bounce.MaxDelay);
+            return ShotAsyncCore(action: null, ctAction: action, bounce.Retries, bounce.BaseDelay, bounce.Timeout, bounce.ShouldBounce, bounce.DisableJitter, ct, bounce.MaxDelay, bounce._o);
         }
 
         #endregion
