@@ -1,6 +1,9 @@
 name: Publish to NuGet
 
 on:
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
     inputs:
       version:
@@ -17,12 +20,42 @@ permissions:
 
 jobs:
   publish:
-    # Dispatch from any other branch would build, test and push to NuGet.
-    if: github.ref == 'refs/heads/master'
+    # Dispatch from any other branch would build, test and push to NuGet. A tag push is
+    # checked against master in the "Resolve version" step instead.
+    if: (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master') || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Dispatch passes the version as an input. A tag push derives it from the tag, and only
+      # accepts a commit that is on master, so a tag on a side branch cannot publish.
+      - name: Resolve version
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "push" ]; then
+            VERSION="${REF_NAME#v}"
+            git fetch --no-tags origin master
+            if ! git merge-base --is-ancestor HEAD origin/master; then
+              echo "::error::Tag $REF_NAME is not on master. Publish only from a commit on master."
+              exit 1
+            fi
+          else
+            VERSION="$INPUT_VERSION"
+          fi
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$'; then
+            echo "::error::'$VERSION' is not a semantic version."
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "Publishing $VERSION"
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -46,8 +79,7 @@ jobs:
       # down twice drifts; derive it once.
       - name: Pack all packages
         run: |
-          VERSION=${{ github.event.inputs.version }}
-          dotnet pack Carom.sln -c Release -o ./dist /p:Version=$VERSION
+          dotnet pack Carom.sln -c Release -o ./dist "/p:Version=$VERSION"
 
       # The same assertion CI makes, repeated here because this is the path that actually
       # ships. A package missing from dist is a package nobody can install.
@@ -81,22 +113,22 @@ jobs:
             --source https://api.nuget.org/v3/index.json \
             --skip-duplicate
 
+      # A tag push already has its tag.
       - name: Create Git Tag
-        if: ${{ github.event.inputs.create_tag == 'true' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.create_tag == 'true' }}
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git tag -a "v${{ github.event.inputs.version }}" -m "Release v${{ github.event.inputs.version }}"
-          git push origin "v${{ github.event.inputs.version }}"
+          git tag -a "v$VERSION" -m "Release v$VERSION"
+          git push origin "v$VERSION"
 
       # Lists what was actually packed. The previous list was written by hand, named six
       # packages and omitted Carom.DependencyInjection, which is the same drift that kept
       # that package unpublished (#33). One derived list, not two hand-kept ones.
       - name: Create GitHub Release
-        if: ${{ github.event.inputs.create_tag == 'true' }}
+        if: ${{ github.event_name == 'push' || github.event.inputs.create_tag == 'true' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ github.event.inputs.version }}
         run: |
           set -euo pipefail
           packages=$(scripts/packed-package-ids.sh ./dist | sed 's/^/- /')
