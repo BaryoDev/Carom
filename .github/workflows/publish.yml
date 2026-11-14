@@ -22,7 +22,7 @@ jobs:
   publish:
     # Dispatch from any other branch would build, test and push to NuGet. A tag push is
     # checked against master in the "Resolve version" step instead.
-    if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')
+    if: (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master') || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
 
     steps:
