@@ -221,15 +221,15 @@ namespace Carom.Tests
         [Fact]
         public void SyncShot_HonoursTheHint()
         {
-            var bounce = Bounce.Times(2).WithDelay(TimeSpan.FromSeconds(30)).WithDelayHint(_ => TimeSpan.FromMilliseconds(5));
+            var bounce = Bounce.Times(2).WithDelay(TimeSpan.FromSeconds(2)).WithDelayHint(_ => TimeSpan.FromMilliseconds(5));
             int calls = 0;
             var watch = Stopwatch.StartNew();
 
             var result = Carom.Shot(() => ++calls == 1 ? throw new RetryAfterException(TimeSpan.Zero) : 7, bounce);
 
-            // The computed delay would be at least the 30 s base; the hint is 5 ms.
+            // The computed delay would be at least the 2 s base; the hint is 5 ms.
             Assert.Equal(7, result);
-            Assert.True(watch.Elapsed < TimeSpan.FromSeconds(10));
+            Assert.True(watch.Elapsed < TimeSpan.FromMilliseconds(1000), $"waited {watch.Elapsed}");
         }
 
         [Fact]

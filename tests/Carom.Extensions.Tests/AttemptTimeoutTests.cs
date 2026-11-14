@@ -175,6 +175,27 @@ namespace Carom.Extensions.Tests
         }
 
         [Fact]
+        public async Task ACancelledTry_WhenTheCallerCancelled_IsNotReportedAsAnAttemptTimeout()
+        {
+            // The caller cancels and the action returns an already-cancelled task, so the try
+            // ends with the caller's cancellation before any timer fires. Core's own race
+            // cannot pre-empt this: the task is complete when it is awaited.
+            using var cts = new CancellationTokenSource();
+            int calls = 0;
+
+            var ex = await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+                CaromAttemptTimeoutExtensions.ShotAsync<int>(ct =>
+                {
+                    calls++;
+                    cts.Cancel();
+                    return Task.FromCanceled<int>(ct);
+                }, Quick(3), TimeSpan.FromSeconds(30), cts.Token));
+
+            Assert.False(ex is TimeoutRejectedException, "caller cancellation was reported as a try timeout");
+            Assert.Equal(1, calls);
+        }
+
+        [Fact]
         public async Task TheTryTokenSource_IsDisposedWhenTheTryEnds()
         {
             CancellationToken seen = default;
