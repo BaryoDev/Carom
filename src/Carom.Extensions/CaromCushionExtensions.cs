@@ -90,8 +90,8 @@ namespace Carom.Extensions
 
         /// <summary>
         /// Executes a cancellable asynchronous shot with circuit breaker protection.
-        /// The action receives the attempt token, which is cancelled on a Bounce timeout or
-        /// when <paramref name="ct"/> is cancelled, so a timed-out call stops running.
+        /// The action receives the attempt token, which is cancelled when
+        /// <paramref name="ct"/> is cancelled. This overload has no timeout; use the Bounce overload for one.
         /// </summary>
         public static Task<T> ShotAsync<T>(
             Func<CancellationToken, Task<T>> action,

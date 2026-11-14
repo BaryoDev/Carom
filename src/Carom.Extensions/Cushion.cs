@@ -128,6 +128,7 @@ namespace Carom.Extensions
         /// </summary>
         public T Execute<T>(Func<T> action)
         {
+            if (action == null) throw new ArgumentNullException(nameof(action));
             var state = CushionStore.GetOrCreate(ServiceKey, this);
 
             // Fast path: circuit closed
@@ -220,6 +221,7 @@ namespace Carom.Extensions
         /// </summary>
         public async Task<T> ExecuteAsync<T>(Func<Task<T>> action)
         {
+            if (action == null) throw new ArgumentNullException(nameof(action));
             var state = CushionStore.GetOrCreate(ServiceKey, this);
 
             // Fast path: circuit closed

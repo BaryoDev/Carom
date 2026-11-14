@@ -126,7 +126,15 @@ namespace Carom.Extensions.Tests
         [Fact]
         public void The_cap_must_be_at_least_one()
         {
-            Assert.Throws<ArgumentOutOfRangeException>(() => Cushion.MaxBreakers = 0);
+            var original = Cushion.MaxBreakers;
+            try
+            {
+                Assert.Throws<ArgumentOutOfRangeException>(() => Cushion.MaxBreakers = 0);
+            }
+            finally
+            {
+                Cushion.MaxBreakers = original;
+            }
         }
 
         [Fact]
@@ -168,6 +176,37 @@ namespace Carom.Extensions.Tests
             Assert.Throws<InvalidOperationException>(() => other.Execute(() => 1));
             Cushion.Reset(key);
             Assert.Equal(1, other.Execute(() => 1));
+        }
+
+        [Fact]
+        public async Task A_null_action_throws_ArgumentNullException_and_does_not_open_the_breaker()
+        {
+            var key = Key("null-action");
+            var cushion = Basic(key);
+
+            Assert.Throws<ArgumentNullException>(() => cushion.Execute<int>(null!));
+            await Assert.ThrowsAsync<ArgumentNullException>(() => cushion.ExecuteAsync<int>((Func<Task<int>>)null!));
+            Assert.NotEqual(CircuitState.Open, Cushion.GetState(key));
+        }
+
+        [Fact]
+        public void The_first_registration_clock_wins_until_Reset()
+        {
+            var key = Key("clock-first");
+            long real = Stopwatch.GetTimestamp();
+            long fake = real;
+            var first = Basic(key, () => real);
+            var second = Basic(key, () => fake);
+
+            Assert.Throws<InvalidOperationException>(() => first.Execute<int>(() => throw new InvalidOperationException()));
+            fake += 31L * Stopwatch.Frequency;
+            // The second cushion's fake clock is ignored: the circuit is still open.
+            Assert.Throws<CircuitOpenException>(() => second.Execute(() => 1));
+
+            Cushion.Reset(key);
+            Assert.Throws<InvalidOperationException>(() => second.Execute<int>(() => throw new InvalidOperationException()));
+            fake += 31L * Stopwatch.Frequency;
+            Assert.Equal(1, second.Execute(() => 1));
         }
     }
 }

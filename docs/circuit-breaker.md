@@ -51,12 +51,17 @@ var order = await CaromCushionExtensions.ShotAsync(ct => api.GetOrderAsync(id, c
 
 The older `Func<Task<T>>` overloads still work. A lambda that ignores the token, `() => ...`,
 picks them. A lambda that takes one parameter, `ct => ...`, picks the token overloads.
+A method group whose name has both an `M()` and an `M(CancellationToken)` overload is
+ambiguous between the two, as it already is for `Carom.ShotAsync`. Pass a lambda or cast it.
 
 ## The conflict rule
 
 A key holds one set of settings. Registering a key again with a different failure threshold,
 sampling window, half-open delay or sampling duration throws `InvalidOperationException`.
 `When` and the clock are not compared.
+
+Because of that, the first registration of a key fixes its clock too. A later `Cushion` for
+the same key with a different `WithClock` is ignored. Call `Cushion.Reset(key)` first to change it.
 
 This is a decision to keep, not a gap: if the store were keyed by key and settings, the same
 service name could hold two breakers and `GetState(key)` would have no single answer. If a

@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `Cushion` breaker overloads that take `Func<CancellationToken, Task<T>>`, so a `Bounce.WithTimeout` cancels the guarded call.
 - Public `Cushion.Execute` and `Cushion.ExecuteAsync`, `Cushion.MaxBreakers`, `Cushion.Reset(key)` and `CushionBuilder.WithClock`.
+- Note: a method group that has both `M()` and `M(CancellationToken)` overloads is now ambiguous when passed to `CaromCushionExtensions.ShotAsync`, as it already is for `Carom.ShotAsync`. Use a lambda or a cast.
 - `docs/circuit-breaker.md`, including the one-key-one-settings rule and eviction.
 
 ### Changed
