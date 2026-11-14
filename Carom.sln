@@ -43,6 +43,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Carom.Telemetry.OpenTelemet
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Carom.AspNetCore.Tests", "tests\Carom.AspNetCore.Tests\Carom.AspNetCore.Tests.csproj", "{06AD07A1-7416-41BC-B47E-6E33791937B1}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Carom.ReadmeSamples.Tests", "tests\Carom.ReadmeSamples.Tests\Carom.ReadmeSamples.Tests.csproj", "{042469EE-BEC5-4512-B63A-AAAFFDF032A8}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -257,6 +259,18 @@ Global
 		{06AD07A1-7416-41BC-B47E-6E33791937B1}.Release|x64.Build.0 = Release|Any CPU
 		{06AD07A1-7416-41BC-B47E-6E33791937B1}.Release|x86.ActiveCfg = Release|Any CPU
 		{06AD07A1-7416-41BC-B47E-6E33791937B1}.Release|x86.Build.0 = Release|Any CPU
+		{042469EE-BEC5-4512-B63A-AAAFFDF032A8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{042469EE-BEC5-4512-B63A-AAAFFDF032A8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{042469EE-BEC5-4512-B63A-AAAFFDF032A8}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{042469EE-BEC5-4512-B63A-AAAFFDF032A8}.Debug|x64.Build.0 = Debug|Any CPU
+		{042469EE-BEC5-4512-B63A-AAAFFDF032A8}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{042469EE-BEC5-4512-B63A-AAAFFDF032A8}.Debug|x86.Build.0 = Debug|Any CPU
+		{042469EE-BEC5-4512-B63A-AAAFFDF032A8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{042469EE-BEC5-4512-B63A-AAAFFDF032A8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{042469EE-BEC5-4512-B63A-AAAFFDF032A8}.Release|x64.ActiveCfg = Release|Any CPU
+		{042469EE-BEC5-4512-B63A-AAAFFDF032A8}.Release|x64.Build.0 = Release|Any CPU
+		{042469EE-BEC5-4512-B63A-AAAFFDF032A8}.Release|x86.ActiveCfg = Release|Any CPU
+		{042469EE-BEC5-4512-B63A-AAAFFDF032A8}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -276,5 +290,6 @@ Global
 		{BA696805-B73E-40D5-A54D-7D5D031A3472} = {92C92E59-A76E-4AB2-842A-AF22E07901C0}
 		{D821AE31-0B33-41C5-A652-3C8FFBA9443D} = {92C92E59-A76E-4AB2-842A-AF22E07901C0}
 		{06AD07A1-7416-41BC-B47E-6E33791937B1} = {92C92E59-A76E-4AB2-842A-AF22E07901C0}
+		{042469EE-BEC5-4512-B63A-AAAFFDF032A8} = {92C92E59-A76E-4AB2-842A-AF22E07901C0}
 	EndGlobalSection
 EndGlobal

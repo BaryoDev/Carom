@@ -12,9 +12,9 @@ namespace Carom.Tests
     /// </summary>
     public class PublishedClaimsTests
     {
-        // README states these bounds. They sit about 10% above the measured 25.5 KB and 54 KB;
+        // README states these bounds. They sit about 10% above the measured 31 KB and 54 KB;
         // the old 40 KB and 100 KB bounds let the README's 21.5 KB core go stale unnoticed.
-        private const long CoreSizeBoundBytes = 28 * 1024;
+        private const long CoreSizeBoundBytes = 34 * 1024;
         private const long ExtensionsSizeBoundBytes = 60 * 1024;
 
         private static readonly Func<int> SucceedingAction = static () => 42;
@@ -53,7 +53,7 @@ namespace Carom.Tests
 
             Assert.True(size <= CoreSizeBoundBytes,
                 $"Carom.dll is {size} bytes, over the {CoreSizeBoundBytes} byte bound. " +
-                "The README states a 28 KB bound for the core (the 'Tiny Footprint' bullet and the package table). " +
+                "The README states a 34 KB bound for the core (the 'Tiny Footprint' bullet and the package table). " +
                 "Update the README sizes and this bound together, deliberately.");
         }
 

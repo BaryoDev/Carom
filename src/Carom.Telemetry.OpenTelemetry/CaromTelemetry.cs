@@ -74,7 +74,7 @@ namespace Carom.Telemetry.OpenTelemetry
             lock (SubscriptionGate)
             {
                 if (_subscribed) return;
-                CaromHooks.OnRetry += RetryHandler;
+                CaromHooks.Retrying += RetryHandler;
                 CaromHooks.OnCircuitOpened += CircuitOpenedHandler;
                 CaromHooks.OnBulkheadRejected += BulkheadRejectedHandler;
                 CaromHooks.OnRateLimitRejected += RateLimitRejectedHandler;
@@ -91,7 +91,7 @@ namespace Carom.Telemetry.OpenTelemetry
             lock (SubscriptionGate)
             {
                 if (!_subscribed) return;
-                CaromHooks.OnRetry -= RetryHandler;
+                CaromHooks.Retrying -= RetryHandler;
                 CaromHooks.OnCircuitOpened -= CircuitOpenedHandler;
                 CaromHooks.OnBulkheadRejected -= BulkheadRejectedHandler;
                 CaromHooks.OnRateLimitRejected -= RateLimitRejectedHandler;

@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `Bounce.WithAttemptTimeout(TimeSpan)` (also on `Bounce<T>`): a timeout for each try. A try
+  that runs out is cancelled and fails with a `TimeoutRejectedException`, which is retried.
+  The overall `WithTimeout` and cancellation still win. The synchronous `Shot` overloads throw
+  `InvalidOperationException` if one is set, like `WithTimeout`.
+- `Bounce.WithDelayHint(Func<Exception, TimeSpan?>)` (also on `Bounce<T>`): names the delay
+  before the next retry, such as a server's `Retry-After`. It replaces the computed jitter for
+  that retry, is clamped to `MaxDelay`, and is still cut short by the overall timeout and
+  cancellation. A null result keeps the computed backoff.
+- `CaromHooks.Retrying` event. Add and remove are atomic and it cannot be assigned from
+  outside, so one subscriber cannot remove another.
+- The core assembly grew from 25.5 KB to 31 KB with these additions. The published size bound
+  moves from 28 KB to 34 KB, in the README and in `PublishedClaimsTests`.
+- `tests/Carom.ReadmeSamples.Tests` compiles the README samples and fails when the README text
+  drifts from the compiled copy.
+
+### Deprecated
+
+- `CaromHooks.OnRetry` is obsolete. It is still raised, next to `Retrying`. Assigning it no
+  longer removes `Retrying` subscribers. It will be removed in the next major version.
+  `CaromTelemetry.Subscribe` now uses `Retrying`.
+
 ### Changed
 
 - The default `Cushion` failure predicate now counts `TimeoutRejectedException` as a failure.
@@ -16,6 +39,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The README Basic Usage sample (`using Carom;` then `Carom.ShotAsync`) did not compile from a
+  file with the using at the top, because the namespace `Carom` hides the class. The sample
+  now uses a `using Retry = Carom.Carom;` alias. The class is not renamed.
 - `CaromHttpHandler` sent POST and PATCH, and requests with a declared body over
   `MaxRetryBufferBytes`, straight to the inner handler, so `Bounce.WithTimeout` was silently
   dropped for them. They still skip retries, but the timeout now applies.

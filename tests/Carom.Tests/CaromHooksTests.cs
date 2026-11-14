@@ -1,3 +1,5 @@
+#pragma warning disable CS0618 // These tests cover the obsolete OnRetry property next to the Retrying event.
+
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -267,5 +269,141 @@ namespace Carom.Tests
             }
         }
 
+        [Fact]
+        public void Retrying_TwoSubscribers_BothReceiveTheRetry()
+        {
+            var threadId = Environment.CurrentManagedThreadId;
+            var first = new List<RetrySignal>();
+            var second = new List<RetrySignal>();
+            Action<RetrySignal> a = s => { if (Environment.CurrentManagedThreadId == threadId) first.Add(s); };
+            Action<RetrySignal> b = s => { if (Environment.CurrentManagedThreadId == threadId) second.Add(s); };
+            CaromHooks.Retrying += a;
+            CaromHooks.Retrying += b;
+            try
+            {
+                RunOneRetry();
+
+                Assert.Single(first);
+                Assert.Single(second);
+                Assert.Equal(1, first[0].Attempt);
+            }
+            finally
+            {
+                CaromHooks.Retrying -= a;
+                CaromHooks.Retrying -= b;
+            }
+        }
+
+        [Fact]
+        public void Retrying_OneSubscriberUnsubscribing_LeavesTheOther()
+        {
+            var threadId = Environment.CurrentManagedThreadId;
+            var first = new List<RetrySignal>();
+            var second = new List<RetrySignal>();
+            Action<RetrySignal> a = s => { if (Environment.CurrentManagedThreadId == threadId) first.Add(s); };
+            Action<RetrySignal> b = s => { if (Environment.CurrentManagedThreadId == threadId) second.Add(s); };
+            CaromHooks.Retrying += a;
+            CaromHooks.Retrying += b;
+            try
+            {
+                CaromHooks.Retrying -= a;
+
+                RunOneRetry();
+
+                Assert.Empty(first);
+                Assert.Single(second);
+            }
+            finally
+            {
+                CaromHooks.Retrying -= a;
+                CaromHooks.Retrying -= b;
+            }
+        }
+
+        [Fact]
+        public void AssigningTheObsoleteProperty_DoesNotRemoveRetryingSubscribers()
+        {
+            var threadId = Environment.CurrentManagedThreadId;
+            var received = new List<RetrySignal>();
+            Action<RetrySignal> sub = s => { if (Environment.CurrentManagedThreadId == threadId) received.Add(s); };
+            var prior = CaromHooks.OnRetry;
+            CaromHooks.Retrying += sub;
+            try
+            {
+                // This is the assignment that used to wipe every other subscriber.
+                CaromHooks.OnRetry = _ => { };
+                CaromHooks.OnRetry = null;
+
+                RunOneRetry();
+
+                Assert.Single(received);
+            }
+            finally
+            {
+                CaromHooks.Retrying -= sub;
+                CaromHooks.OnRetry = prior;
+            }
+        }
+
+        [Fact]
+        public void Retrying_AThrowingSubscriber_DoesNotStopTheNextOne()
+        {
+            var threadId = Environment.CurrentManagedThreadId;
+            var received = new List<RetrySignal>();
+            Action<RetrySignal> bad = s => { if (Environment.CurrentManagedThreadId == threadId) throw new InvalidOperationException("broken"); };
+            Action<RetrySignal> good = s => { if (Environment.CurrentManagedThreadId == threadId) received.Add(s); };
+            CaromHooks.Retrying += bad;
+            CaromHooks.Retrying += good;
+            try
+            {
+                RunOneRetry();
+
+                Assert.Single(received);
+            }
+            finally
+            {
+                CaromHooks.Retrying -= bad;
+                CaromHooks.Retrying -= good;
+            }
+        }
+
+        [Fact]
+        public void Retrying_AndTheObsoleteProperty_BothReceiveTheRetry()
+        {
+            var threadId = Environment.CurrentManagedThreadId;
+            int viaEvent = 0, viaProperty = 0;
+            Action<RetrySignal> sub = s => { if (Environment.CurrentManagedThreadId == threadId) viaEvent++; };
+            var prior = CaromHooks.OnRetry;
+            CaromHooks.Retrying += sub;
+            CaromHooks.OnRetry = s => { if (Environment.CurrentManagedThreadId == threadId) viaProperty++; };
+            try
+            {
+                RunOneRetry();
+
+                Assert.Equal(1, viaEvent);
+                Assert.Equal(1, viaProperty);
+            }
+            finally
+            {
+                CaromHooks.Retrying -= sub;
+                CaromHooks.OnRetry = prior;
+            }
+        }
+
+        private static void RunOneRetry()
+        {
+            int calls = 0;
+            Carom.Shot(
+                () =>
+                {
+                    calls++;
+                    if (calls == 1) throw new CaromHooksProbeException();
+                    return 7;
+                },
+                retries: 2,
+                baseDelay: TimeSpan.Zero,
+                shouldBounce: null,
+                disableJitter: true);
+        }
     }
 }
