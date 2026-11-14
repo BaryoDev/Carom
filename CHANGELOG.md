@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.1.0] - 2026-11-14
 
 ### Added
 
@@ -23,11 +23,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   drifts from the compiled copy.
 - `Cushion` breaker overloads that take `Func<CancellationToken, Task<T>>`, so a `Bounce.WithTimeout` cancels the guarded call.
 - Public `Cushion.Execute` and `Cushion.ExecuteAsync`, `Cushion.MaxBreakers`, `Cushion.Reset(key)` and `CushionBuilder.WithClock`.
-- Note: a method group that has both `M()` and `M(CancellationToken)` overloads is now ambiguous when passed to `CaromCushionExtensions.ShotAsync`, as it already is for `Carom.ShotAsync`. Use a lambda or a cast.
 - `docs/circuit-breaker.md`, including the one-key-one-settings rule and eviction.
 
 ### Changed
 
+- Source break in `Carom.Extensions`: `CaromCushionExtensions.ShotAsync` gained overloads that
+  take `Func<CancellationToken, Task<T>>`. A method group that has both an `M()` and an
+  `M(CancellationToken)` overload, passed as the action, is now ambiguous and no longer
+  compiles, as it already was for `Carom.ShotAsync`. Pass a lambda (`() => M()` or
+  `ct => M(ct)`) or cast the method group. Lambdas, existing binaries and every other call
+  shape are unaffected.
 - The default `Cushion` failure predicate now counts `TimeoutRejectedException` as a failure.
   It derives from `OperationCanceledException`, which the default ignored, so a hanging
   dependency behind `Bounce.WithTimeout` never opened the breaker. Breakers with the default
@@ -47,6 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   retries and jitter off, which threw `ArgumentException` from inside the catch block. The
   exponent is now capped.
 - The publish workflow only runs from `master`.
+- `LICENSE` now holds the canonical MPL-2.0 text, so GitHub detects the licence.
 
 ## [2.0.1] - 2026-09-29
 
