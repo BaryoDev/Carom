@@ -17,6 +17,8 @@ on:
 
 permissions:
   contents: write
+  # Lets the runner mint the OIDC token nuget.org exchanges for a short-lived key.
+  id-token: write
 
 jobs:
   publish:
@@ -106,10 +108,22 @@ jobs:
       - name: List packages
         run: ls -lh ./dist/*.nupkg
 
+      # Trusted publishing: no long-lived key. Getting a key publishes nothing.
+      - name: Exchange OIDC token for a short-lived NuGet key
+        id: nuget_login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ vars.NUGET_USER || 'arnelirobles' }}
+
       - name: Push to NuGet
+        env:
+          NUGET_API_KEY: ${{ steps.nuget_login.outputs.NUGET_API_KEY }}
         run: |
+          if [ -z "$NUGET_API_KEY" ]; then
+            echo "::error::No API key returned. Check the trusted publishing policy on nuget.org." && exit 1
+          fi
           dotnet nuget push "./dist/*.nupkg" \
-            --api-key ${{ secrets.NUGET_API_KEY }} \
+            --api-key "$NUGET_API_KEY" \
             --source https://api.nuget.org/v3/index.json \
             --skip-duplicate
 
