@@ -17,8 +17,6 @@ on:
 
 permissions:
   contents: write
-  # Lets the runner mint the OIDC token nuget.org exchanges for a short-lived key.
-  id-token: write
 
 jobs:
   publish:
@@ -26,6 +24,11 @@ jobs:
     # checked against master in the "Resolve version" step instead.
     if: (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master') || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
+    environment: nuget-release
+    permissions:
+      contents: write
+      # Lets the runner mint the OIDC token nuget.org exchanges for a short-lived key.
+      id-token: write
 
     steps:
       - uses: actions/checkout@v4
