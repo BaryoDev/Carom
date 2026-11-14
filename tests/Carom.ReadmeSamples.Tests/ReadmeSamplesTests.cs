@@ -19,7 +19,6 @@ namespace Carom.ReadmeSamples.Tests
             new object[] { "basic-usage" },
             new object[] { "attempt-timeout" },
             new object[] { "delay-hint" },
-            new object[] { "retry-event" },
         };
 
         [Theory]

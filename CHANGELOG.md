@@ -17,16 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   before the next retry, such as a server's `Retry-After`. It replaces the computed jitter for
   that retry, is clamped to `MaxDelay`, and is still cut short by the overall timeout and
   cancellation. A null result keeps the computed backoff.
-- `CaromHooks.Retrying` event. Add and remove are atomic and it cannot be assigned from
-  outside, so one subscriber cannot remove another.
 - `tests/Carom.ReadmeSamples.Tests` compiles the README samples and fails when the README text
   drifts from the compiled copy.
-
-### Deprecated
-
-- `CaromHooks.OnRetry` is obsolete. It is still raised, next to `Retrying`. Assigning it no
-  longer removes `Retrying` subscribers. It will be removed in the next major version.
-  `CaromTelemetry.Subscribe` now uses `Retrying`.
 
 ### Changed
 

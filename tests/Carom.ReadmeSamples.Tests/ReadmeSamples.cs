@@ -72,12 +72,4 @@ public static class ReadmeSamples
 
         GC.KeepAlive(data);
     }
-
-    public static void RetryEvent()
-    {
-        // readme:begin retry-event
-        CaromHooks.Retrying += signal =>
-            Console.WriteLine($"retry {signal.Attempt} in {signal.Delay}");
-        // readme:end retry-event
-    }
 }

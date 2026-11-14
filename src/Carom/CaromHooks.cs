@@ -73,57 +73,16 @@ namespace Carom
 
     /// <summary>
     /// Process-wide hooks raised by Carom and Carom.Extensions. Subscribe with += and
-    /// unsubscribe with -=. The retry hook is the <see cref="Retrying"/> event, whose add and
-    /// remove are atomic and which no consumer can overwrite. The other hooks are still plain
-    /// settable delegates, so a consumer or a test can read, replace or clear them.
+    /// unsubscribe with -=. Plain settable delegates, not events, so a consumer or a
+    /// test can read, replace or clear a hook; an event could never be reset.
     /// Nothing is computed or allocated when a hook is null, so an unsubscribed
     /// process pays nothing. Handlers run synchronously on the calling thread and
     /// must be fast and must not throw.
     /// </summary>
     public static class CaromHooks
     {
-        private static Action<RetrySignal>? _onRetry;
-
-        /// <summary>
-        /// Raised after the backoff delay is computed, just before a retry runs. Add and remove
-        /// are atomic, and the event cannot be assigned from outside, so one subscriber cannot
-        /// remove another. Each subscriber is called on its own: one that throws does not stop
-        /// the ones after it.
-        /// </summary>
-        public static event Action<RetrySignal>? Retrying;
-
-        /// <summary>
-        /// The old settable retry hook, still raised. Assigning it replaces only what was
-        /// assigned to this property, never a <see cref="Retrying"/> subscriber, but += on it is
-        /// still a non-atomic read, combine and write, so two threads can lose a subscriber.
-        /// </summary>
-        [Obsolete("Use Retrying.")]
-        public static Action<RetrySignal>? OnRetry
-        {
-            get => _onRetry;
-            set => _onRetry = value;
-        }
-
-        /// <summary>
-        /// Raises the retry hooks. Each handler runs on its own so a throwing or
-        /// misbehaving one cannot skip the rest. Allocates only while a subscriber exists.
-        /// </summary>
-        internal static void Raise(int attempt, TimeSpan delay, Exception? cause)
-        {
-            var legacy = _onRetry;
-            var handlers = Retrying;
-            if (legacy == null && handlers == null) return;
-
-            var signal = new RetrySignal(attempt, delay, cause?.GetType().Name);
-            if (legacy != null) Invoke(legacy, signal);
-            if (handlers == null) return;
-
-            var list = handlers.GetInvocationList();
-            for (int i = 0; i < list.Length; i++)
-            {
-                Invoke((Action<RetrySignal>)list[i], signal);
-            }
-        }
+        /// <summary>Raised after the backoff delay is computed, just before a retry runs.</summary>
+        public static Action<RetrySignal>? OnRetry { get; set; }
 
         /// <summary>Raised when a circuit breaker transitions from closed to open.</summary>
         public static Action<CircuitOpenedSignal>? OnCircuitOpened { get; set; }
@@ -133,6 +92,12 @@ namespace Carom
 
         /// <summary>Raised when a rate limiter rejects a call.</summary>
         public static Action<RateLimitRejectedSignal>? OnRateLimitRejected { get; set; }
+
+        internal static void Raise(int attempt, TimeSpan delay, Exception? cause)
+        {
+            var onRetry = OnRetry;
+            if (onRetry != null) Invoke(onRetry, new RetrySignal(attempt, delay, cause?.GetType().Name));
+        }
 
         /// <summary>
         /// Invokes a hook without letting it break the path it observes. Raises happen inside
