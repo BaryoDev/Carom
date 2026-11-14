@@ -55,22 +55,10 @@ namespace Carom
         // Nullable backing so default(Bounce) still reports the 30 second default.
         private readonly TimeSpan? _maxDelay;
 
-        /// <summary>
-        /// Optional timeout for each single try, set by WithAttemptTimeout.
-        /// </summary>
-        public TimeSpan? AttemptTimeout => _extras?.AttemptTimeout;
-
-        /// <summary>
-        /// Optional hint for the delay before the next retry, set by WithDelayHint.
-        /// </summary>
-        public Func<Exception, TimeSpan?>? DelayHint => _extras?.DelayHint;
-
         // Rarely used options live in one reference so a Bounce without them stays small.
-        private readonly BounceExtras? _extras;
+        internal readonly Opts? _o;
 
-        internal BounceExtras? Extras => _extras;
-
-        private Bounce(int retries, TimeSpan baseDelay, TimeSpan? timeout, bool disableJitter, Func<Exception, bool>? shouldBounce, TimeSpan? maxDelay = null, BounceExtras? extras = null)
+        private Bounce(int retries, TimeSpan baseDelay, TimeSpan? timeout, bool disableJitter, Func<Exception, bool>? shouldBounce, TimeSpan? maxDelay = null, Opts? extras = null)
         {
             Retries = retries;
             BaseDelay = baseDelay;
@@ -78,7 +66,7 @@ namespace Carom
             DisableJitter = disableJitter;
             ShouldBounce = shouldBounce;
             _maxDelay = maxDelay;
-            _extras = extras;
+            _o = extras;
         }
 
         /// <summary>
@@ -108,7 +96,7 @@ namespace Carom
         {
             if (delay < TimeSpan.Zero)
                 throw new ArgumentOutOfRangeException(nameof(delay), "Delay cannot be negative");
-            return new Bounce(Retries, delay, Timeout, DisableJitter, ShouldBounce, _maxDelay, _extras);
+            return new Bounce(Retries, delay, Timeout, DisableJitter, ShouldBounce, _maxDelay, _o);
         }
 
         /// <summary>
@@ -117,7 +105,7 @@ namespace Carom
         /// </summary>
         /// <returns>A new Bounce configuration with jitter disabled.</returns>
         public Bounce WithoutJitter() =>
-            new Bounce(Retries, BaseDelay, Timeout, disableJitter: true, ShouldBounce, _maxDelay, _extras);
+            new Bounce(Retries, BaseDelay, Timeout, disableJitter: true, ShouldBounce, _maxDelay, _o);
 
         /// <summary>
         /// Sets a predicate to determine which exceptions should trigger a retry.
@@ -125,7 +113,7 @@ namespace Carom
         /// <param name="predicate">The exception predicate.</param>
         /// <returns>A new Bounce configuration with the specified predicate.</returns>
         public Bounce When(Func<Exception, bool> predicate) =>
-            new Bounce(Retries, BaseDelay, Timeout, DisableJitter, predicate, _maxDelay, _extras);
+            new Bounce(Retries, BaseDelay, Timeout, DisableJitter, predicate, _maxDelay, _o);
 
         /// <summary>
         /// Sets the maximum delay between retries.
@@ -139,7 +127,7 @@ namespace Carom
         {
             if (maxDelay <= TimeSpan.Zero)
                 throw new ArgumentOutOfRangeException(nameof(maxDelay), "Max delay must be positive");
-            return new Bounce(Retries, BaseDelay, Timeout, DisableJitter, ShouldBounce, maxDelay, _extras);
+            return new Bounce(Retries, BaseDelay, Timeout, DisableJitter, ShouldBounce, maxDelay, _o);
         }
 
         /// <summary>
@@ -154,24 +142,7 @@ namespace Carom
         {
             if (timeout <= TimeSpan.Zero)
                 throw new ArgumentOutOfRangeException(nameof(timeout), "Timeout must be positive");
-            return new Bounce(Retries, BaseDelay, timeout, DisableJitter, ShouldBounce, _maxDelay, _extras);
-        }
-
-        /// <summary>
-        /// Sets a timeout for each single try. When one try runs longer, it is cancelled
-        /// (the token passed to a cancellable action is cancelled) and fails with a
-        /// <see cref="TimeoutRejectedException"/>, which is retried like any other failure
-        /// that passes the exception predicate. The overall <see cref="WithTimeout"/> still
-        /// bounds the whole operation including retries. Enforced only by the asynchronous
-        /// ShotAsync overloads; the synchronous Shot overloads throw InvalidOperationException.
-        /// </summary>
-        /// <param name="timeout">The per-try timeout. Must be positive.</param>
-        /// <returns>A new Bounce configuration with the specified per-try timeout.</returns>
-        public Bounce WithAttemptTimeout(TimeSpan timeout)
-        {
-            if (timeout <= TimeSpan.Zero)
-                throw new ArgumentOutOfRangeException(nameof(timeout), "Attempt timeout must be positive");
-            return new Bounce(Retries, BaseDelay, Timeout, DisableJitter, ShouldBounce, _maxDelay, BounceExtras.With(_extras, attemptTimeout: timeout));
+            return new Bounce(Retries, BaseDelay, timeout, DisableJitter, ShouldBounce, _maxDelay, _o);
         }
 
         /// <summary>
@@ -187,12 +158,12 @@ namespace Carom
         public Bounce WithDelayHint(Func<Exception, TimeSpan?> hint)
         {
             if (hint == null) throw new ArgumentNullException(nameof(hint));
-            return new Bounce(Retries, BaseDelay, Timeout, DisableJitter, ShouldBounce, _maxDelay, BounceExtras.With(_extras, delayHint: hint));
+            return new Bounce(Retries, BaseDelay, Timeout, DisableJitter, ShouldBounce, _maxDelay, new Opts(hint, _o?.Sleep));
         }
 
         // Test seam: replaces Task.Delay so a fake clock can observe and release the waits.
         internal Bounce WithSleep(Func<TimeSpan, CancellationToken, Task> sleep) =>
-            new Bounce(Retries, BaseDelay, Timeout, DisableJitter, ShouldBounce, _maxDelay, BounceExtras.With(_extras, sleep: sleep));
+            new Bounce(Retries, BaseDelay, Timeout, DisableJitter, ShouldBounce, _maxDelay, new Opts(_o?.Hint, sleep));
     }
 
     /// <summary>
@@ -242,23 +213,11 @@ namespace Carom
         // Nullable backing so default(Bounce<T>) still reports the 30 second default.
         private readonly TimeSpan? _maxDelay;
 
-        /// <summary>
-        /// Optional timeout for each single try, set by WithAttemptTimeout.
-        /// </summary>
-        public TimeSpan? AttemptTimeout => _extras?.AttemptTimeout;
-
-        /// <summary>
-        /// Optional hint for the delay before the next retry, set by WithDelayHint.
-        /// </summary>
-        public Func<Exception, TimeSpan?>? DelayHint => _extras?.DelayHint;
-
         // Rarely used options live in one reference so a Bounce without them stays small.
-        private readonly BounceExtras? _extras;
-
-        internal BounceExtras? Extras => _extras;
+        internal readonly Opts? _o;
 
         private Bounce(int retries, TimeSpan baseDelay, TimeSpan? timeout, bool disableJitter,
-            Func<Exception, bool>? shouldBounce, Func<T, bool>? shouldRetryResult, TimeSpan? maxDelay = null, BounceExtras? extras = null)
+            Func<Exception, bool>? shouldBounce, Func<T, bool>? shouldRetryResult, TimeSpan? maxDelay = null, Opts? extras = null)
         {
             Retries = retries;
             BaseDelay = baseDelay;
@@ -267,7 +226,7 @@ namespace Carom
             ShouldBounce = shouldBounce;
             ShouldRetryResult = shouldRetryResult;
             _maxDelay = maxDelay;
-            _extras = extras;
+            _o = extras;
         }
 
         /// <summary>
@@ -298,7 +257,7 @@ namespace Carom
         {
             if (delay < TimeSpan.Zero)
                 throw new ArgumentOutOfRangeException(nameof(delay), "Delay cannot be negative");
-            return new Bounce<T>(Retries, delay, Timeout, DisableJitter, ShouldBounce, ShouldRetryResult, _maxDelay, _extras);
+            return new Bounce<T>(Retries, delay, Timeout, DisableJitter, ShouldBounce, ShouldRetryResult, _maxDelay, _o);
         }
 
         /// <summary>
@@ -307,7 +266,7 @@ namespace Carom
         /// </summary>
         /// <returns>A new Bounce configuration with jitter disabled.</returns>
         public Bounce<T> WithoutJitter() =>
-            new Bounce<T>(Retries, BaseDelay, Timeout, disableJitter: true, ShouldBounce, ShouldRetryResult, _maxDelay, _extras);
+            new Bounce<T>(Retries, BaseDelay, Timeout, disableJitter: true, ShouldBounce, ShouldRetryResult, _maxDelay, _o);
 
         /// <summary>
         /// Sets a predicate to determine which exceptions should trigger a retry.
@@ -315,7 +274,7 @@ namespace Carom
         /// <param name="predicate">The exception predicate.</param>
         /// <returns>A new Bounce configuration with the specified predicate.</returns>
         public Bounce<T> When(Func<Exception, bool> predicate) =>
-            new Bounce<T>(Retries, BaseDelay, Timeout, DisableJitter, predicate, ShouldRetryResult, _maxDelay, _extras);
+            new Bounce<T>(Retries, BaseDelay, Timeout, DisableJitter, predicate, ShouldRetryResult, _maxDelay, _o);
 
         /// <summary>
         /// Sets a predicate to determine which results should trigger a retry.
@@ -323,7 +282,7 @@ namespace Carom
         /// <param name="predicate">The result predicate (returns true to retry).</param>
         /// <returns>A new Bounce configuration with the specified result predicate.</returns>
         public Bounce<T> WhenResult(Func<T, bool> predicate) =>
-            new Bounce<T>(Retries, BaseDelay, Timeout, DisableJitter, ShouldBounce, predicate, _maxDelay, _extras);
+            new Bounce<T>(Retries, BaseDelay, Timeout, DisableJitter, ShouldBounce, predicate, _maxDelay, _o);
 
         /// <summary>
         /// Sets the maximum delay between retries.
@@ -337,7 +296,7 @@ namespace Carom
         {
             if (maxDelay <= TimeSpan.Zero)
                 throw new ArgumentOutOfRangeException(nameof(maxDelay), "Max delay must be positive");
-            return new Bounce<T>(Retries, BaseDelay, Timeout, DisableJitter, ShouldBounce, ShouldRetryResult, maxDelay, _extras);
+            return new Bounce<T>(Retries, BaseDelay, Timeout, DisableJitter, ShouldBounce, ShouldRetryResult, maxDelay, _o);
         }
 
         /// <summary>
@@ -352,24 +311,7 @@ namespace Carom
         {
             if (timeout <= TimeSpan.Zero)
                 throw new ArgumentOutOfRangeException(nameof(timeout), "Timeout must be positive");
-            return new Bounce<T>(Retries, BaseDelay, timeout, DisableJitter, ShouldBounce, ShouldRetryResult, _maxDelay, _extras);
-        }
-
-        /// <summary>
-        /// Sets a timeout for each single try. When one try runs longer, it is cancelled
-        /// (the token passed to a cancellable action is cancelled) and fails with a
-        /// <see cref="TimeoutRejectedException"/>, which is retried like any other failure
-        /// that passes the exception predicate. The overall <see cref="WithTimeout"/> still
-        /// bounds the whole operation including retries. Enforced only by the asynchronous
-        /// ShotAsync overloads; the synchronous Shot overloads throw InvalidOperationException.
-        /// </summary>
-        /// <param name="timeout">The per-try timeout. Must be positive.</param>
-        /// <returns>A new Bounce configuration with the specified per-try timeout.</returns>
-        public Bounce<T> WithAttemptTimeout(TimeSpan timeout)
-        {
-            if (timeout <= TimeSpan.Zero)
-                throw new ArgumentOutOfRangeException(nameof(timeout), "Attempt timeout must be positive");
-            return new Bounce<T>(Retries, BaseDelay, Timeout, DisableJitter, ShouldBounce, ShouldRetryResult, _maxDelay, BounceExtras.With(_extras, attemptTimeout: timeout));
+            return new Bounce<T>(Retries, BaseDelay, timeout, DisableJitter, ShouldBounce, ShouldRetryResult, _maxDelay, _o);
         }
 
         /// <summary>
@@ -385,12 +327,12 @@ namespace Carom
         public Bounce<T> WithDelayHint(Func<Exception, TimeSpan?> hint)
         {
             if (hint == null) throw new ArgumentNullException(nameof(hint));
-            return new Bounce<T>(Retries, BaseDelay, Timeout, DisableJitter, ShouldBounce, ShouldRetryResult, _maxDelay, BounceExtras.With(_extras, delayHint: hint));
+            return new Bounce<T>(Retries, BaseDelay, Timeout, DisableJitter, ShouldBounce, ShouldRetryResult, _maxDelay, new Opts(hint, _o?.Sleep));
         }
 
         // Test seam: replaces Task.Delay so a fake clock can observe and release the waits.
         internal Bounce<T> WithSleep(Func<TimeSpan, CancellationToken, Task> sleep) =>
-            new Bounce<T>(Retries, BaseDelay, Timeout, DisableJitter, ShouldBounce, ShouldRetryResult, _maxDelay, BounceExtras.With(_extras, sleep: sleep));
+            new Bounce<T>(Retries, BaseDelay, Timeout, DisableJitter, ShouldBounce, ShouldRetryResult, _maxDelay, new Opts(_o?.Hint, sleep));
     }
 }
 
@@ -399,24 +341,15 @@ namespace Carom
     /// <summary>
     /// Optional Bounce settings, kept behind one reference so the common Bounce is unchanged.
     /// </summary>
-    internal sealed class BounceExtras
+    internal sealed class Opts
     {
-        public TimeSpan? AttemptTimeout { get; private set; }
-        public Func<Exception, TimeSpan?>? DelayHint { get; private set; }
-        public Func<TimeSpan, CancellationToken, Task>? Sleep { get; private set; }
+        internal readonly Func<Exception, TimeSpan?>? Hint;
+        internal readonly Func<TimeSpan, CancellationToken, Task>? Sleep;
 
-        public static BounceExtras With(
-            BounceExtras? current,
-            TimeSpan? attemptTimeout = null,
-            Func<Exception, TimeSpan?>? delayHint = null,
-            Func<TimeSpan, CancellationToken, Task>? sleep = null)
+        internal Opts(Func<Exception, TimeSpan?>? delayHint, Func<TimeSpan, CancellationToken, Task>? sleep)
         {
-            return new BounceExtras
-            {
-                AttemptTimeout = attemptTimeout ?? current?.AttemptTimeout,
-                DelayHint = delayHint ?? current?.DelayHint,
-                Sleep = sleep ?? current?.Sleep,
-            };
+            Hint = delayHint;
+            Sleep = sleep;
         }
     }
 }

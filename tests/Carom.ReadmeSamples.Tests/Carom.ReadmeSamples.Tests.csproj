@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/Carom/Carom.csproj" />
+    <ProjectReference Include="../../src/Carom.Extensions/Carom.Extensions.csproj" />
   </ItemGroup>
 
 </Project>

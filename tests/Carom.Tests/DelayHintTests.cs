@@ -215,7 +215,7 @@ namespace Carom.Tests
             Func<Exception, TimeSpan?> hint = _ => null;
             var bounce = Bounce.Times(1).WithDelayHint(hint).WithDelay(TimeSpan.Zero).WithTimeout(TimeSpan.FromSeconds(1)).WithoutJitter();
 
-            Assert.Same(hint, bounce.DelayHint);
+            Assert.Same(hint, bounce._o!.Hint);
         }
 
         [Fact]

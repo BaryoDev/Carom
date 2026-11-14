@@ -82,7 +82,7 @@ namespace Carom
     /// </summary>
     public static class CaromHooks
     {
-        private static Action<RetrySignal>? _legacyOnRetry;
+        private static Action<RetrySignal>? _onRetry;
 
         /// <summary>
         /// Raised after the backoff delay is computed, just before a retry runs. Add and remove
@@ -97,25 +97,25 @@ namespace Carom
         /// assigned to this property, never a <see cref="Retrying"/> subscriber, but += on it is
         /// still a non-atomic read, combine and write, so two threads can lose a subscriber.
         /// </summary>
-        [Obsolete("Subscribe to CaromHooks.Retrying instead. This property is not atomic and will be removed in the next major version.")]
+        [Obsolete("Use Retrying.")]
         public static Action<RetrySignal>? OnRetry
         {
-            get => _legacyOnRetry;
-            set => _legacyOnRetry = value;
+            get => _onRetry;
+            set => _onRetry = value;
         }
-
-        internal static bool HasRetryHandlers => _legacyOnRetry != null || Retrying != null;
 
         /// <summary>
         /// Raises the retry hooks. Each handler runs on its own so a throwing or
         /// misbehaving one cannot skip the rest. Allocates only while a subscriber exists.
         /// </summary>
-        internal static void RaiseRetry(RetrySignal signal)
+        internal static void Raise(int attempt, TimeSpan delay, Exception? cause)
         {
-            var legacy = _legacyOnRetry;
-            if (legacy != null) Invoke(legacy, signal);
-
+            var legacy = _onRetry;
             var handlers = Retrying;
+            if (legacy == null && handlers == null) return;
+
+            var signal = new RetrySignal(attempt, delay, cause?.GetType().Name);
+            if (legacy != null) Invoke(legacy, signal);
             if (handlers == null) return;
 
             var list = handlers.GetInvocationList();

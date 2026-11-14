@@ -15,17 +15,17 @@ Runs on .NET 10 and .NET 8. The core packages target `netstandard2.0`, so .NET F
 - **Zero Dependencies** (core packages)
 - **Zero Allocations** (0 bytes on the successful hot path, test-enforced)
 - **Safe by Default** (mandatory decorrelated jitter)
-- **Tiny Footprint** (31KB core, 54KB extensions)
+- **Tiny Footprint** (27.5KB core, 57.5KB extensions)
 - **Fully Composable** (all patterns work together)
 
 ## 📦 Packages
 
-Sizes are the Release-built assemblies. Tests fail if the core grows past 34KB or the extensions past 60KB.
+Sizes are the Release-built assemblies. Tests fail if the core grows past 28KB or the extensions past 60KB.
 
 | Package | Size | Purpose |
 |---------|------|---------|
-| **Carom** | 31KB | Core retry + timeout |
-| **Carom.Extensions** | 54KB | Circuit Breaker, Fallback, Bulkhead, Rate Limiting |
+| **Carom** | 27.5KB | Core retry + timeout |
+| **Carom.Extensions** | 57.5KB | Circuit Breaker, Fallback, Bulkhead, Rate Limiting |
 | **Carom.Http** | 12.5KB | HTTP integration |
 | **Carom.DependencyInjection** | 21.5KB | Named resilience pipelines for `IServiceCollection` |
 | **Carom.AspNetCore** | 8.5KB | ASP.NET Core health checks |
@@ -62,19 +62,20 @@ file a bare `Carom.ShotAsync` does not resolve. The alias above fixes that, and
 
 ### Per-try timeout and Retry-After
 
-`WithTimeout` bounds the whole call. `WithAttemptTimeout` bounds each try: a try that runs
-out is cancelled and fails with a `TimeoutRejectedException`, which is retried like any
-other failure. The overall timeout and cancellation still end the call. Attempt timeouts
-need `ShotAsync`; the synchronous `Shot` overloads throw if one is set.
+`WithTimeout` bounds the whole call. To bound each try as well, use `CaromAttemptTimeoutExtensions`
+from `Carom.Extensions`: a try that runs out is cancelled and fails with a
+`TimeoutRejectedException`, which is retried like any other failure. The overall timeout and
+cancellation still end the call. It needs a `Func<CancellationToken, Task>` action.
 
 <!-- sample: attempt-timeout -->
 ```csharp
-// Each try gets 2 seconds, the whole call gets 10
-var bounce = Bounce.Times(3)
-    .WithAttemptTimeout(TimeSpan.FromSeconds(2))
-    .WithTimeout(TimeSpan.FromSeconds(10));
+using Carom.Extensions;
 
-var data = await Retry.ShotAsync(ct => apiClient.FetchAsync(ct), bounce);
+// Each try gets 2 seconds, the whole call gets 10
+var bounce = Bounce.Times(3).WithTimeout(TimeSpan.FromSeconds(10));
+
+var data = await CaromAttemptTimeoutExtensions.ShotAsync(
+    ct => apiClient.FetchAsync(ct), bounce, attemptTimeout: TimeSpan.FromSeconds(2));
 ```
 
 `WithDelayHint` lets the failure name the wait before the next retry, such as a server's
@@ -201,7 +202,7 @@ Speed is not the pitch. Per successful call, both Carom and Polly cost nanosecon
 The claims we do make are measured (Apple M1, .NET 8, against Polly 8.4.2) and enforced by `tests/Carom.Tests/PublishedClaimsTests.cs`:
 
 - **Zero allocations on the successful hot path**: Carom 0 B per call. Polly v8 allocates 24 B per call, the Polly v7 API 248 B.
-- **Small on disk**: Carom.dll is 31 KB and Carom.Extensions.dll 54 KB. Polly.Core.dll (net8.0) is 237 KB.
+- **Small on disk**: Carom.dll is 27.5 KB and Carom.Extensions.dll 57.5 KB. Polly.Core.dll (net8.0) is 237 KB.
 - **Zero package dependencies on every target**: Polly.Core has none on net8.0 but needs four packages on netstandard2.0 and five on .NET Framework.
 
 Details and methodology in [docs/BENCHMARKS.md](docs/BENCHMARKS.md).

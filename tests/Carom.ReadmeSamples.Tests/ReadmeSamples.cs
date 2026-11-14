@@ -7,6 +7,9 @@
 using Carom;
 using Retry = Carom.Carom;
 // readme:end basic-usage
+// readme:begin attempt-timeout
+using Carom.Extensions;
+// readme:end attempt-timeout
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -47,11 +50,10 @@ public static class ReadmeSamples
     {
         // readme:begin attempt-timeout
         // Each try gets 2 seconds, the whole call gets 10
-        var bounce = Bounce.Times(3)
-            .WithAttemptTimeout(TimeSpan.FromSeconds(2))
-            .WithTimeout(TimeSpan.FromSeconds(10));
+        var bounce = Bounce.Times(3).WithTimeout(TimeSpan.FromSeconds(10));
 
-        var data = await Retry.ShotAsync(ct => apiClient.FetchAsync(ct), bounce);
+        var data = await CaromAttemptTimeoutExtensions.ShotAsync(
+            ct => apiClient.FetchAsync(ct), bounce, attemptTimeout: TimeSpan.FromSeconds(2));
         // readme:end attempt-timeout
 
         GC.KeepAlive(data);

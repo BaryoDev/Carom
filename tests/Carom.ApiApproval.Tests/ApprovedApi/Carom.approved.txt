@@ -4,16 +4,13 @@ namespace Carom
 {
     public readonly struct Bounce
     {
-        public System.TimeSpan? AttemptTimeout { get; }
         public System.TimeSpan BaseDelay { get; }
-        public System.Func<System.Exception, System.TimeSpan?>? DelayHint { get; }
         public bool DisableJitter { get; }
         public System.TimeSpan MaxDelay { get; }
         public int Retries { get; }
         public System.Func<System.Exception, bool>? ShouldBounce { get; }
         public System.TimeSpan? Timeout { get; }
         public Carom.Bounce When(System.Func<System.Exception, bool> predicate) { }
-        public Carom.Bounce WithAttemptTimeout(System.TimeSpan timeout) { }
         public Carom.Bounce WithDelay(System.TimeSpan delay) { }
         public Carom.Bounce WithDelayHint(System.Func<System.Exception, System.TimeSpan?> hint) { }
         public Carom.Bounce WithMaxDelay(System.TimeSpan maxDelay) { }
@@ -26,9 +23,7 @@ namespace Carom
     }
     public readonly struct Bounce<T>
     {
-        public System.TimeSpan? AttemptTimeout { get; }
         public System.TimeSpan BaseDelay { get; }
-        public System.Func<System.Exception, System.TimeSpan?>? DelayHint { get; }
         public bool DisableJitter { get; }
         public System.TimeSpan MaxDelay { get; }
         public int Retries { get; }
@@ -37,7 +32,6 @@ namespace Carom
         public System.TimeSpan? Timeout { get; }
         public Carom.Bounce<T> When(System.Func<System.Exception, bool> predicate) { }
         public Carom.Bounce<T> WhenResult(System.Func<T, bool> predicate) { }
-        public Carom.Bounce<T> WithAttemptTimeout(System.TimeSpan timeout) { }
         public Carom.Bounce<T> WithDelay(System.TimeSpan delay) { }
         public Carom.Bounce<T> WithDelayHint(System.Func<System.Exception, System.TimeSpan?> hint) { }
         public Carom.Bounce<T> WithMaxDelay(System.TimeSpan maxDelay) { }
@@ -78,8 +72,7 @@ namespace Carom
         public static System.Action<Carom.BulkheadRejectedSignal>? OnBulkheadRejected { get; set; }
         public static System.Action<Carom.CircuitOpenedSignal>? OnCircuitOpened { get; set; }
         public static System.Action<Carom.RateLimitRejectedSignal>? OnRateLimitRejected { get; set; }
-        [System.Obsolete("Subscribe to CaromHooks.Retrying instead. This property is not atomic and will be" +
-            " removed in the next major version.")]
+        [System.Obsolete("Use Retrying.")]
         public static System.Action<Carom.RetrySignal>? OnRetry { get; set; }
         public  static  event System.Action<Carom.RetrySignal>? Retrying;
     }
