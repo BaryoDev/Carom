@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `Cushion` breaker overloads that take `Func<CancellationToken, Task<T>>`, so a `Bounce.WithTimeout` cancels the guarded call.
+- Public `Cushion.Execute` and `Cushion.ExecuteAsync`, `Cushion.MaxBreakers`, `Cushion.Reset(key)` and `CushionBuilder.WithClock`.
+- `docs/circuit-breaker.md`, including the one-key-one-settings rule and eviction.
+
 ### Changed
 
 - The default `Cushion` failure predicate now counts `TimeoutRejectedException` as a failure.
