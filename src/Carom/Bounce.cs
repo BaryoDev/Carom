@@ -151,7 +151,8 @@ namespace Carom
         /// to use the computed backoff. A returned delay replaces the computed delay (no jitter is
         /// added), is clamped to zero at the bottom and to <see cref="MaxDelay"/> at the top, and
         /// is still cut short by the overall timeout and by cancellation. A hint does not feed the
-        /// jitter sequence, and a hint that throws is ignored.
+        /// jitter sequence, and a hint that throws is ignored. It applies to retries after an exception
+        /// only, not to result-based retries.
         /// </summary>
         /// <param name="hint">Returns the delay to wait, or null for the computed backoff.</param>
         /// <returns>A new Bounce configuration with the specified delay hint.</returns>
@@ -320,7 +321,8 @@ namespace Carom
         /// to use the computed backoff. A returned delay replaces the computed delay (no jitter is
         /// added), is clamped to zero at the bottom and to <see cref="MaxDelay"/> at the top, and
         /// is still cut short by the overall timeout and by cancellation. A hint does not feed the
-        /// jitter sequence, and a hint that throws is ignored.
+        /// jitter sequence, and a hint that throws is ignored. It applies to retries after an exception
+        /// only, not to result-based retries.
         /// </summary>
         /// <param name="hint">Returns the delay to wait, or null for the computed backoff.</param>
         /// <returns>A new Bounce configuration with the specified delay hint.</returns>

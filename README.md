@@ -65,7 +65,9 @@ file a bare `Carom.ShotAsync` does not resolve. The alias above fixes that, and
 `WithTimeout` bounds the whole call. To bound each try as well, use `CaromAttemptTimeoutExtensions`
 from `Carom.Extensions`: a try that runs out is cancelled and fails with a
 `TimeoutRejectedException`, which is retried like any other failure. The overall timeout and
-cancellation still end the call. It needs a `Func<CancellationToken, Task>` action.
+cancellation still end the call. It needs a `Func<CancellationToken, Task>` action. An action
+that ignores its token keeps running after its try times out, so the next try can overlap it;
+pass the token on to whatever the action calls.
 
 <!-- sample: attempt-timeout -->
 ```csharp
@@ -81,7 +83,8 @@ var data = await CaromAttemptTimeoutExtensions.ShotAsync(
 `WithDelayHint` lets the failure name the wait before the next retry, such as a server's
 `Retry-After`. The hint replaces the computed jitter for that retry, is clamped to
 `MaxDelay`, and is still cut short by the overall timeout and by cancellation. Return null
-to keep the computed backoff.
+to keep the computed backoff. The hint applies to retries after an exception only, not to
+`WhenResult` retries.
 
 <!-- sample: delay-hint -->
 ```csharp
@@ -107,10 +110,18 @@ var cushion = Cushion.ForService("payment-api")
     .When(ex => ex is HttpRequestException)
     .HalfOpenAfter(TimeSpan.FromSeconds(30));
 
+var bounce = Bounce.Times(2).WithTimeout(TimeSpan.FromSeconds(5));
+
 var payment = await CaromCushionExtensions.ShotAsync(
-    () => paymentApi.Charge(), 
-    cushion);
+    ct => paymentApi.Charge(ct),
+    cushion,
+    bounce);
 ```
+
+The `ct` reaches the call, so the Bounce timeout stops it instead of leaving it running.
+`cushion.ExecuteAsync` and `Execute` guard a call with no retry, `Cushion.Reset(key)` closes a
+breaker, `Cushion.MaxBreakers` sizes the store, and `WithClock` drives half-open in tests.
+See [docs/circuit-breaker.md](docs/circuit-breaker.md).
 
 The circuit opens as soon as 5 failures are recorded. `trackingLast` bounds how far back
 failures are counted, and `WithinLast` expires them by age, so an old incident cannot

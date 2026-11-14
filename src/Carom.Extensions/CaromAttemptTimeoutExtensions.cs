@@ -13,6 +13,8 @@ namespace Carom.Extensions
     /// cancelled (the token passed to the action is cancelled) and fails with a
     /// <see cref="TimeoutRejectedException"/>, which Carom retries like any other failure that
     /// passes the Bounce predicate. The overall timeout and caller cancellation still end the call.
+    /// An action that ignores its token keeps running after its try times out, so the next try can
+    /// overlap it.
     /// </summary>
     public static class CaromAttemptTimeoutExtensions
     {
@@ -22,7 +24,7 @@ namespace Carom.Extensions
         /// <typeparam name="T">The return type of the action.</typeparam>
         /// <param name="action">The action. Receives a token cancelled on a try timeout, the overall timeout or caller cancellation.</param>
         /// <param name="bounce">The retry configuration.</param>
-        /// <param name="attemptTimeout">The timeout for each try. Must be positive.</param>
+        /// <param name="attemptTimeout">The timeout for each try. Must be positive and at most int.MaxValue milliseconds.</param>
         /// <param name="ct">Cancellation token.</param>
         public static Task<T> ShotAsync<T>(
             Func<CancellationToken, Task<T>> action,
@@ -40,7 +42,7 @@ namespace Carom.Extensions
         /// <typeparam name="T">The return type of the action.</typeparam>
         /// <param name="action">The action. Receives a token cancelled on a try timeout, the overall timeout or caller cancellation.</param>
         /// <param name="bounce">The retry configuration with result predicate.</param>
-        /// <param name="attemptTimeout">The timeout for each try. Must be positive.</param>
+        /// <param name="attemptTimeout">The timeout for each try. Must be positive and at most int.MaxValue milliseconds.</param>
         /// <param name="ct">Cancellation token.</param>
         public static Task<T> ShotAsync<T>(
             Func<CancellationToken, Task<T>> action,
@@ -57,7 +59,7 @@ namespace Carom.Extensions
         /// </summary>
         /// <param name="action">The action. Receives a token cancelled on a try timeout, the overall timeout or caller cancellation.</param>
         /// <param name="bounce">The retry configuration.</param>
-        /// <param name="attemptTimeout">The timeout for each try. Must be positive.</param>
+        /// <param name="attemptTimeout">The timeout for each try. Must be positive and at most int.MaxValue milliseconds.</param>
         /// <param name="ct">Cancellation token.</param>
         public static Task ShotAsync(
             Func<CancellationToken, Task> action,
@@ -74,6 +76,9 @@ namespace Carom.Extensions
             if (action == null) throw new ArgumentNullException(nameof(action));
             if (attemptTimeout <= TimeSpan.Zero)
                 throw new ArgumentOutOfRangeException(nameof(attemptTimeout), "Attempt timeout must be positive");
+            // CancelAfter rejects larger values, and inside the retried lambda that would be retried.
+            if (attemptTimeout.TotalMilliseconds > int.MaxValue)
+                throw new ArgumentOutOfRangeException(nameof(attemptTimeout), "Attempt timeout must be at most int.MaxValue milliseconds");
         }
 
         private static Func<CancellationToken, Task<T>> Limit<T>(Func<CancellationToken, Task<T>> action, TimeSpan attemptTimeout)

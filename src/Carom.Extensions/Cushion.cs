@@ -2,6 +2,7 @@
 // Licensed under the MPL-2.0 license. See LICENSE file in the project root for full license information.
 
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Carom.Extensions
@@ -52,8 +53,8 @@ namespace Carom.Extensions
         internal static bool DefaultShouldTrip(Exception ex) =>
             ex is TimeoutRejectedException || ex is not OperationCanceledException;
 
-        // Test seam for the injectable monotonic clock (issue #8 pattern); null
-        // means Stopwatch.GetTimestamp. Not part of the public API.
+        // Injectable monotonic clock, set through CushionBuilder.WithClock; null
+        // means Stopwatch.GetTimestamp.
         internal Func<long>? Timestamp { get; }
 
         internal Cushion(string serviceKey, int failureThreshold, int samplingWindow, TimeSpan halfOpenDelay,
@@ -94,11 +95,40 @@ namespace Carom.Extensions
             CushionStore.TryGetState(serviceKey, out var state) ? state : (CircuitState?)null;
 
         /// <summary>
+        /// Maximum number of circuit breakers kept in the process-wide store (default 1000).
+        /// When a new key pushes the store over this size, the least recently used breakers
+        /// are evicted, about 10% of the cap beyond the overflow. An evicted breaker is
+        /// recreated Closed on its next call, so an open circuit that falls out of the store
+        /// silently resets. Set this above the number of distinct keys you expect.
+        /// Must be at least 1. Lowering it does not evict until the next new key arrives.
+        /// </summary>
+        public static int MaxBreakers
+        {
+            get => CushionStore.MaxSize;
+            set
+            {
+                if (value < 1)
+                    throw new ArgumentOutOfRangeException(nameof(value), "MaxBreakers must be at least 1");
+                CushionStore.MaxSize = value;
+            }
+        }
+
+        /// <summary>
+        /// Forgets the breaker for a key. Its next call starts a new breaker, Closed and with
+        /// an empty window, using whatever settings that call registers. Returns false when
+        /// no breaker was stored for the key. Use it to close an open circuit by hand, or to
+        /// change a key's settings.
+        /// </summary>
+        public static bool Reset(string serviceKey) => CushionStore.Remove(serviceKey);
+
+        /// <summary>
         /// Executes a synchronous action with circuit breaker protection.
         /// Uses atomic state transitions to ensure only one thread executes the test request in half-open state.
+        /// Does not retry: wrap the action in a Carom shot yourself if you want retries inside the breaker.
         /// </summary>
-        internal T Execute<T>(Func<T> action)
+        public T Execute<T>(Func<T> action)
         {
+            if (action == null) throw new ArgumentNullException(nameof(action));
             var state = CushionStore.GetOrCreate(ServiceKey, this);
 
             // Fast path: circuit closed
@@ -187,9 +217,11 @@ namespace Carom.Extensions
         /// <summary>
         /// Executes an asynchronous action with circuit breaker protection.
         /// Uses atomic state transitions to ensure only one thread executes the test request in half-open state.
+        /// Does not retry: use CaromCushionExtensions.ShotAsync for retries inside the breaker.
         /// </summary>
-        internal async Task<T> ExecuteAsync<T>(Func<Task<T>> action)
+        public async Task<T> ExecuteAsync<T>(Func<Task<T>> action)
         {
+            if (action == null) throw new ArgumentNullException(nameof(action));
             var state = CushionStore.GetOrCreate(ServiceKey, this);
 
             // Fast path: circuit closed
@@ -246,6 +278,18 @@ namespace Carom.Extensions
             }
 
             throw new InvalidOperationException($"Invalid circuit state: {state.State}");
+        }
+
+        /// <summary>
+        /// Executes an asynchronous action with circuit breaker protection.
+        /// The action receives <paramref name="ct"/> unchanged. The breaker itself never
+        /// cancels it, so the action must honour the token for a timeout to stop the call.
+        /// Does not retry: use CaromCushionExtensions.ShotAsync for retries inside the breaker.
+        /// </summary>
+        public Task<T> ExecuteAsync<T>(Func<CancellationToken, Task<T>> action, CancellationToken ct = default)
+        {
+            if (action == null) throw new ArgumentNullException(nameof(action));
+            return ExecuteAsync(() => action(ct));
         }
 
         /// <summary>
@@ -332,12 +376,20 @@ namespace Carom.Extensions
             return this;
         }
 
-        // Injects the monotonic clock so time-dependent tests need no sleeping.
-        internal CushionBuilder WithTimestamp(Func<long> timestamp)
+        /// <summary>
+        /// Replaces the clock the breaker reads, so half-open and window expiry can be tested
+        /// without sleeping. The function returns a monotonic timestamp in
+        /// <see cref="System.Diagnostics.Stopwatch.Frequency"/> units per second, the same
+        /// units as <see cref="System.Diagnostics.Stopwatch.GetTimestamp"/>, which is the default.
+        /// </summary>
+        public CushionBuilder WithClock(Func<long> timestamp)
         {
-            _timestamp = timestamp;
+            _timestamp = timestamp ?? throw new ArgumentNullException(nameof(timestamp));
             return this;
         }
+
+        // Kept for the existing tests.
+        internal CushionBuilder WithTimestamp(Func<long> timestamp) => WithClock(timestamp);
 
         /// <summary>
         /// Sets the half-open delay and builds the Cushion.

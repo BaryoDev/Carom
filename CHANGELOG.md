@@ -11,14 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `CaromAttemptTimeoutExtensions.ShotAsync` in `Carom.Extensions`: a timeout for each try. A try
   that runs out is cancelled and fails with a `TimeoutRejectedException`, which is retried. The
-  overall `WithTimeout` and cancellation still win. It lives in the add-on package so the core
-  stays under its published size bound.
-- `Bounce.WithDelayHint(Func<Exception, TimeSpan?>)` (also on `Bounce<T>`; honoured by `Shot` and `ShotAsync`): names the delay
-  before the next retry, such as a server's `Retry-After`. It replaces the computed jitter for
-  that retry, is clamped to `MaxDelay`, and is still cut short by the overall timeout and
-  cancellation. A null result keeps the computed backoff.
+  overall `WithTimeout` and cancellation still win. An action that ignores its token keeps
+  running after its try times out, so the next try can overlap it. It lives in the add-on package
+  so the core stays under its published size bound.
+- `Bounce.WithDelayHint(Func<Exception, TimeSpan?>)` (also on `Bounce<T>`; honoured by `Shot` and
+  `ShotAsync`): names the delay before the next retry, such as a server's `Retry-After`. It
+  replaces the computed jitter for that retry, is clamped to `MaxDelay`, and is still cut short
+  by the overall timeout and cancellation. A null result keeps the computed backoff. It applies
+  to retries after an exception only, not to `WhenResult` retries.
 - `tests/Carom.ReadmeSamples.Tests` compiles the README samples and fails when the README text
   drifts from the compiled copy.
+- `Cushion` breaker overloads that take `Func<CancellationToken, Task<T>>`, so a `Bounce.WithTimeout` cancels the guarded call.
+- Public `Cushion.Execute` and `Cushion.ExecuteAsync`, `Cushion.MaxBreakers`, `Cushion.Reset(key)` and `CushionBuilder.WithClock`.
+- Note: a method group that has both `M()` and `M(CancellationToken)` overloads is now ambiguous when passed to `CaromCushionExtensions.ShotAsync`, as it already is for `Carom.ShotAsync`. Use a lambda or a cast.
+- `docs/circuit-breaker.md`, including the one-key-one-settings rule and eviction.
 
 ### Changed
 

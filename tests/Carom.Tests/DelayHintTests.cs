@@ -231,5 +231,97 @@ namespace Carom.Tests
             Assert.Equal(7, result);
             Assert.True(watch.Elapsed < TimeSpan.FromSeconds(10));
         }
+
+        [Fact]
+        public async Task AHint_DoesNotInflateTheNextJitterRange_Async()
+        {
+            // Jitter on: the next delay is rand(base, previous * 3). If a 3 s hint became the
+            // previous delay, the next wait would be up to 9 s instead of at most 3 * base.
+            var clock = new FakeClock();
+            int calls = 0;
+            var bounce = Bounce.Times(3)
+                .WithDelay(TimeSpan.FromMilliseconds(10))
+                .WithDelayHint(ex => ex is RetryAfterException ? TimeSpan.FromSeconds(3) : (TimeSpan?)null)
+                .WithSleep(clock.Sleep);
+
+            await Carom.ShotAsync<int>(() =>
+            {
+                calls++;
+                if (calls == 1) throw new RetryAfterException(TimeSpan.Zero);
+                if (calls == 2) throw new InvalidOperationException("no hint");
+                return Task.FromResult(7);
+            }, bounce);
+
+            Assert.Equal(TimeSpan.FromSeconds(3), clock.Waits[0]);
+            Assert.InRange(clock.Waits[1], TimeSpan.FromMilliseconds(10), TimeSpan.FromMilliseconds(30));
+        }
+
+        [Fact]
+        public async Task AHint_DoesNotInflateTheNextJitterRange_VoidAsync()
+        {
+            var clock = new FakeClock();
+            int calls = 0;
+            var bounce = Bounce.Times(3)
+                .WithDelay(TimeSpan.FromMilliseconds(10))
+                .WithDelayHint(ex => ex is RetryAfterException ? TimeSpan.FromSeconds(3) : (TimeSpan?)null)
+                .WithSleep(clock.Sleep);
+
+            await Carom.ShotAsync(() =>
+            {
+                calls++;
+                if (calls == 1) throw new RetryAfterException(TimeSpan.Zero);
+                if (calls == 2) throw new InvalidOperationException("no hint");
+                return Task.CompletedTask;
+            }, bounce);
+
+            Assert.Equal(TimeSpan.FromSeconds(3), clock.Waits[0]);
+            Assert.InRange(clock.Waits[1], TimeSpan.FromMilliseconds(10), TimeSpan.FromMilliseconds(30));
+        }
+
+        [Fact]
+        public void SyncShotAction_HonoursTheHint()
+        {
+            var bounce = Bounce.Times(2).WithDelay(TimeSpan.FromSeconds(2)).WithDelayHint(_ => TimeSpan.FromMilliseconds(5));
+            int calls = 0;
+            var watch = Stopwatch.StartNew();
+
+            Carom.Shot(() => { if (++calls == 1) throw new RetryAfterException(TimeSpan.Zero); }, bounce);
+
+            // Without the hint the wait is at least the 2 s base delay.
+            Assert.Equal(2, calls);
+            Assert.True(watch.Elapsed < TimeSpan.FromMilliseconds(1000), $"waited {watch.Elapsed}");
+        }
+
+        [Fact]
+        public void SyncShotTypedBounce_HonoursTheHint()
+        {
+            var bounce = Bounce.For<int>(2).WithDelay(TimeSpan.FromSeconds(2)).WithDelayHint(_ => TimeSpan.FromMilliseconds(5));
+            int calls = 0;
+            var watch = Stopwatch.StartNew();
+
+            var result = Carom.Shot(() => ++calls == 1 ? throw new RetryAfterException(TimeSpan.Zero) : 7, bounce);
+
+            Assert.Equal(7, result);
+            Assert.True(watch.Elapsed < TimeSpan.FromMilliseconds(1000), $"waited {watch.Elapsed}");
+        }
+
+        [Fact]
+        public async Task ResultRetries_IgnoreTheHint()
+        {
+            var clock = new FakeClock();
+            int calls = 0;
+            var hinted = false;
+            var bounce = Bounce.For<int>(2)
+                .WithDelay(TimeSpan.FromMilliseconds(10))
+                .WithoutJitter()
+                .WhenResult(r => r < 2)
+                .WithDelayHint(_ => { hinted = true; return TimeSpan.FromSeconds(3); })
+                .WithSleep(clock.Sleep);
+
+            var result = await Carom.ShotAsync(() => Task.FromResult(++calls), bounce);
+
+            Assert.Equal(2, result);
+            Assert.False(hinted);
+        }
     }
 }
