@@ -402,7 +402,8 @@ public class CaromHttpHandlerFeatureTests
         };
         var down = new Uri("http://down.test/x");
 
-        for (var i = 0; i < 3; i++)
+        // Two failures open the breaker; the factory is not asked again for the same host.
+        for (var i = 0; i < 2; i++)
         {
             await Assert.ThrowsAnyAsync<HttpRequestException>(() => Send(handler, new HttpRequestMessage(HttpMethod.Get, down)));
         }
@@ -424,7 +425,7 @@ public class CaromHttpHandlerFeatureTests
                 return Breaker(host);
             }
         };
-        var other = new Uri("http://other-down.test/x");
+        var other = new Uri("http://down.test/x");
 
         await Send(handler, new HttpRequestMessage(HttpMethod.Get, new Uri("http://up.test/x")));
         for (var i = 0; i < 4; i++)
