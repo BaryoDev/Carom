@@ -2,10 +2,13 @@
 // Licensed under the MPL-2.0 license. See LICENSE file in the project root for full license information.
 
 using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
+using Carom.Extensions;
 
 namespace Carom.Http
 {
@@ -71,7 +74,8 @@ namespace Carom.Http
         /// (a common cause of 502/504 under failover), a retry would duplicate the
         /// side effect. Retrying also re-serializes the same HttpContent instance,
         /// which silently sends an empty body for non-rewindable stream content.
-        /// Enable only when requests are idempotent (e.g., carry an idempotency key).
+        /// Enable only when requests are idempotent (e.g., carry an idempotency key). An explicit
+        /// <see cref="AllowResend"/> value on a request overrides this flag.
         /// </summary>
         public bool RetryNonIdempotentRequests { get; set; }
 
@@ -89,15 +93,100 @@ namespace Carom.Http
         /// </remarks>
         public long MaxRetryBufferBytes { get; set; } = 1024 * 1024;
 
+        /// <summary>
+        /// The name of the request option that marks one request as safe to resend. Set it to true
+        /// to let a POST or PATCH be retried when this handler's <see cref="RetryNonIdempotentRequests"/>
+        /// is off. On net8.0 and later use the typed key <see cref="AllowResend"/>; on netstandard2.0
+        /// set <c>request.Properties[CaromHttpHandler.AllowResendOptionName] = true</c>.
+        /// </summary>
+        public const string AllowResendOptionName = "Carom.Http.AllowResend";
+
+#if NET5_0_OR_GREATER
+        /// <summary>
+        /// A request option the caller sets to true to say this request is safe to resend, for
+        /// example <c>request.Options.Set(CaromHttpHandler.AllowResend, true)</c>. A request that
+        /// carries a non-empty <c>Idempotency-Key</c> header is treated the same way. An explicit
+        /// value on the request wins: false stops a resend after a status or a timeout, even when the
+        /// header is present or <see cref="RetryNonIdempotentRequests"/> is on, because the most
+        /// specific setting wins. It does not stop an idempotent method (GET, PUT and so on) from being
+        /// retried, and it does not stop a POST from being sent again after a connect or
+        /// name-resolution failure on net8.0, because nothing reached the server.
+        /// </summary>
+        public static readonly HttpRequestOptionsKey<bool> AllowResend =
+            new HttpRequestOptionsKey<bool>(AllowResendOptionName);
+#endif
+
+        /// <summary>
+        /// When the tries run out on a transient status (502, 503, 504, 408, 429), hand back the
+        /// last response, body readable, instead of throwing <see cref="TransientHttpException"/>.
+        /// Defaults to false, which keeps the old behaviour: the response is disposed and the
+        /// exception is thrown. Every response that is retried is disposed before the next try, and
+        /// only the returned one is left for the caller to dispose. The overall timeout cuts a
+        /// Retry-After wait: the held response is then disposed and
+        /// <see cref="TimeoutRejectedException"/> is thrown.
+        /// </summary>
+        public bool ReturnLastResponse { get; set; }
+
+        /// <summary>
+        /// Gives a circuit breaker per request host. The function receives <c>RequestUri.Host</c> and
+        /// returns the <see cref="Cushion"/> for it, so a down provider stops being called while the
+        /// others carry on. It is called once per host and the result is kept. Give each host its own
+        /// service key (for example <c>"http:" + host</c>), because a Cushion's state is stored by key.
+        /// The breaker wraps the whole retry chain, so one call records one outcome, and a response
+        /// handed back by <see cref="ReturnLastResponse"/> still counts as a failure. Null (the
+        /// default) means no breaker.
+        /// </summary>
+        public Func<string, Cushion>? CushionForHost { get; set; }
+
+        /// <summary>
+        /// The most hosts <see cref="CushionForHost"/> is asked about. Defaults to 100. A host that
+        /// arrives after the bound is reached is sent without a breaker and is not remembered, so the
+        /// table never grows past the bound. A request can also run without a breaker while other hosts
+        /// are claiming slots or a factory is failing. Must be at least 1.
+        /// </summary>
+        public int MaxCushionHosts
+        {
+            get => _maxCushionHosts;
+            set
+            {
+                if (value < 1) throw new ArgumentOutOfRangeException(nameof(value), "MaxCushionHosts must be at least 1");
+                _maxCushionHosts = value;
+            }
+        }
+
+        private int _maxCushionHosts = 100;
+        private readonly ConcurrentDictionary<string, Lazy<Cushion>> _cushions =
+            new ConcurrentDictionary<string, Lazy<Cushion>>(StringComparer.OrdinalIgnoreCase);
+        private int _cushionSlots;
+
+        // Test seam for reading an HTTP-date Retry-After against a fixed time.
+        internal Func<DateTimeOffset>? Clock { get; set; }
+
         /// <inheritdoc />
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
-            if (!RetryNonIdempotentRequests && !IsIdempotent(request.Method))
+            var cushion = CushionFor(request);
+
+            if (!CanResend(request))
             {
+#if NET8_0_OR_GREATER
+                // A connect or name-resolution failure means nothing reached the server, so even a
+                // POST can go again. The body is not buffered here, so only content that can be
+                // serialized more than once is resent; anything else fails as if the tries ran out.
+                if (IsReplayable(request.Content))
+                {
+                    var user = _config.ShouldBounce;
+                    var connectOnly = _config
+                        .When(ex => IsConnectFailure(ex) && (user == null || user(ex)))
+                        .WithDelayHint(RetryAfterOf);
+                    return await RunAsync(request, connectOnly, returnResponse: true, cushion, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+#endif
                 // Sent once, no retries, but the Bounce timeout still applies.
-                return await SendOnceAsync(request, cancellationToken).ConfigureAwait(false);
+                return await SendSingleAsync(request, cushion, cancellationToken).ConfigureAwait(false);
             }
 
             // Buffered before the first attempt, because every attempt re-sends this same request and
@@ -119,7 +208,7 @@ namespace Carom.Http
                     // Known to be too big, and nothing has touched the body yet, so it can still be
                     // sent exactly once. Retry is an optimisation; a large upload is a reason to skip
                     // it rather than to fail the call.
-                    return await SendOnceAsync(request, cancellationToken).ConfigureAwait(false);
+                    return await SendSingleAsync(request, cushion, cancellationToken).ConfigureAwait(false);
                 }
 
                 // Unknown length, or known and within the bound. LoadIntoBufferAsync partially
@@ -143,29 +232,286 @@ namespace Carom.Http
 
             // Pass the whole Bounce so every field, present and future, reaches core. The
             // attempt token carries the Bounce timeout, so a timeout cancels the send itself.
-            var effective = _config.ShouldBounce == null ? _config.When(IsTransientException) : _config;
-            return await Carom.ShotAsync(
-                async token =>
-                {
-                    var response = await base.SendAsync(request, token).ConfigureAwait(false);
-                    if (IsTransientError(response.StatusCode))
-                    {
-                        var statusCode = response.StatusCode;
-                        response.Dispose();
-                        throw new TransientHttpException($"Transient HTTP error: {statusCode}", statusCode);
-                    }
-                    return response;
-                },
-                effective,
-                cancellationToken).ConfigureAwait(false);
+            // The hint replaces any WithDelayHint on the configured Bounce.
+            var effective = (_config.ShouldBounce == null ? _config.When(IsTransientException) : _config)
+                .WithDelayHint(RetryAfterOf);
+            return await RunAsync(request, effective, ReturnLastResponse, cushion, cancellationToken)
+                .ConfigureAwait(false);
         }
 
         // One attempt, no retries, but the Bounce timeout still applies.
-        private Task<HttpResponseMessage> SendOnceAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        private Task<HttpResponseMessage> SendSingleAsync(
+            HttpRequestMessage request, Cushion? cushion, CancellationToken cancellationToken)
         {
             var once = Bounce.Times(0);
             if (_config.Timeout is TimeSpan timeout) once = once.WithTimeout(timeout);
+
+            if (cushion is Cushion)
+            {
+                // Through the breaker, so a 503 counts as a failure. The response is still returned.
+                return RunAsync(request, once, returnResponse: true, cushion, cancellationToken);
+            }
+
             return Carom.ShotAsync(token => base.SendAsync(request, token), once, cancellationToken);
+        }
+
+        // Runs the tries. A transient status becomes a TransientHttpException so the retry loop and
+        // the breaker see a failure. With returnResponse the response is kept (not disposed) on that
+        // exception and handed back once the tries are over; a response that is followed by another
+        // try is disposed when that try starts.
+        private async Task<HttpResponseMessage> RunAsync(
+            HttpRequestMessage request,
+            Bounce bounce,
+            bool returnResponse,
+            Cushion? cushion,
+            CancellationToken cancellationToken)
+        {
+            HttpResponseMessage? held = null;
+            var handedBack = false;
+            var closed = false;
+            var gate = new object();
+            try
+            {
+                Func<CancellationToken, Task<HttpResponseMessage>> attempt = async token =>
+                {
+                    var previous = held;
+                    held = null;
+                    previous?.Dispose();
+
+                    var response = await base.SendAsync(request, token).ConfigureAwait(false);
+                    if (!IsTransientError(response.StatusCode))
+                    {
+                        return response;
+                    }
+
+                    var failure = new TransientHttpException(
+                        $"Transient HTTP error: {response.StatusCode}", response.StatusCode)
+                    {
+                        RetryAfter = ReadRetryAfter(response)
+                    };
+
+                    var kept = false;
+                    if (returnResponse)
+                    {
+                        // An attempt the timeout abandoned can finish after RunAsync has cleaned
+                        // up. Then nobody is left to take the response, so it is disposed here.
+                        lock (gate)
+                        {
+                            if (!closed)
+                            {
+                                held = response;
+                                kept = true;
+                            }
+                        }
+                    }
+
+                    if (kept)
+                    {
+                        failure.Response = response;
+                    }
+                    else
+                    {
+                        response.Dispose();
+                    }
+
+                    throw failure;
+                };
+
+                if (cushion is Cushion breaker)
+                {
+                    return await breaker.ExecuteAsync(
+                        () => Carom.ShotAsync(attempt, bounce, cancellationToken)).ConfigureAwait(false);
+                }
+
+                return await Carom.ShotAsync(attempt, bounce, cancellationToken).ConfigureAwait(false);
+            }
+            catch (TransientHttpException ex) when (held != null && ReferenceEquals(ex.Response, held))
+            {
+                handedBack = true;
+                var last = held;
+                held = null;
+                return last;
+            }
+            finally
+            {
+                HttpResponseMessage? leftover;
+                lock (gate)
+                {
+                    closed = true;
+                    leftover = handedBack ? null : held;
+                    held = null;
+                }
+
+                leftover?.Dispose();
+            }
+        }
+
+        private Cushion? CushionFor(HttpRequestMessage request)
+        {
+            var factory = CushionForHost;
+            var uri = request.RequestUri;
+            if (factory == null || uri == null || !uri.IsAbsoluteUri)
+            {
+                return null;
+            }
+
+            var host = uri.Host;
+            if (string.IsNullOrEmpty(host))
+            {
+                return null;
+            }
+
+            if (_cushions.TryGetValue(host, out var known))
+            {
+                return ValueOf(host, known);
+            }
+
+            // Reserve a slot before the factory runs, so the bound holds under parallel first
+            // requests. No lock: the count only goes up by Interlocked, and a loser gives it back.
+            if (Interlocked.Increment(ref _cushionSlots) > _maxCushionHosts)
+            {
+                // Past the bound: this host runs without a breaker, and nothing is stored.
+                Interlocked.Decrement(ref _cushionSlots);
+                return null;
+            }
+
+            var fresh = new Lazy<Cushion>(() => factory(host), LazyThreadSafetyMode.ExecutionAndPublication);
+            var entry = _cushions.GetOrAdd(host, fresh);
+            if (!ReferenceEquals(entry, fresh))
+            {
+                // Another thread's entry won, so its slot is the one in use.
+                Interlocked.Decrement(ref _cushionSlots);
+            }
+
+            return ValueOf(host, entry);
+        }
+
+        // Runs the factory (once, through the Lazy). If it throws, nothing stays stored and the
+        // slot is released, so the next request calls the factory again.
+        private Cushion ValueOf(string host, Lazy<Cushion> entry)
+        {
+            try
+            {
+                return entry.Value;
+            }
+            catch
+            {
+                var pair = new KeyValuePair<string, Lazy<Cushion>>(host, entry);
+                if (((ICollection<KeyValuePair<string, Lazy<Cushion>>>)_cushions).Remove(pair))
+                {
+                    Interlocked.Decrement(ref _cushionSlots);
+                }
+
+                throw;
+            }
+        }
+
+        private bool CanResend(HttpRequestMessage request)
+        {
+            if (IsIdempotent(request.Method))
+            {
+                return true;
+            }
+
+            // The most specific setting wins: an explicit AllowResend on the request, either way,
+            // beats the Idempotency-Key header and the handler-wide flag.
+            if (TryReadResendMark(request, out var marked))
+            {
+                return marked;
+            }
+
+            return RetryNonIdempotentRequests || HasIdempotencyKey(request);
+        }
+
+        private static bool HasIdempotencyKey(HttpRequestMessage request)
+        {
+            if (!request.Headers.TryGetValues("Idempotency-Key", out var values))
+            {
+                return false;
+            }
+
+            foreach (var value in values)
+            {
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool TryReadResendMark(HttpRequestMessage request, out bool marked)
+        {
+#if NET5_0_OR_GREATER
+            return request.Options.TryGetValue(AllowResend, out marked);
+#else
+            if (request.Properties.TryGetValue(AllowResendOptionName, out var value) && value is bool allowed)
+            {
+                marked = allowed;
+                return true;
+            }
+
+            marked = false;
+            return false;
+#endif
+        }
+
+#if NET8_0_OR_GREATER
+        // Content that serializes from memory every time it is asked, so it can be sent again
+        // without buffering it first. JsonContent serializes its value on every send. A multipart
+        // body is replayable when every part is, at any depth. StreamContent is not.
+        private static bool IsReplayable(HttpContent? content)
+        {
+            if (content == null || content is ByteArrayContent || content is System.Net.Http.Json.JsonContent)
+            {
+                return true;
+            }
+
+            if (content is MultipartContent multipart)
+            {
+                foreach (var part in multipart)
+                {
+                    if (!IsReplayable(part))
+                    {
+                        return false;
+                    }
+                }
+
+                return true;
+            }
+
+            return false;
+        }
+#endif
+
+        private static TimeSpan? RetryAfterOf(Exception ex) => (ex as TransientHttpException)?.RetryAfter;
+
+        // Retry-After as a wait from now: delta seconds, or an HTTP-date read against the handler's
+        // clock. A negative or missing value is no hint.
+        internal TimeSpan? ReadRetryAfter(HttpResponseMessage response)
+        {
+            var header = response.Headers.RetryAfter;
+            if (header == null)
+            {
+                return null;
+            }
+
+            TimeSpan wait;
+            if (header.Delta is TimeSpan delta)
+            {
+                wait = delta;
+            }
+            else if (header.Date is DateTimeOffset date)
+            {
+                wait = date - (Clock ?? (() => DateTimeOffset.UtcNow))();
+            }
+            else
+            {
+                return null;
+            }
+
+            return wait < TimeSpan.Zero ? (TimeSpan?)null : wait;
         }
 
         /// <summary>
@@ -188,9 +534,34 @@ namespace Carom.Http
         /// <returns>True if the exception is transient and should be retried.</returns>
         private static bool IsTransientException(Exception ex)
         {
-            // Retry on HttpRequestException (network errors) and TransientHttpException
-            return ex is HttpRequestException || ex is TransientHttpException;
+            if (ex is TransientHttpException)
+            {
+                return true;
+            }
+
+            if (ex is HttpRequestException request)
+            {
+#if NET8_0_OR_GREATER
+                // A TLS failure will fail the same way next time.
+                return request.HttpRequestError != HttpRequestError.SecureConnectionError;
+#else
+                return true;
+#endif
+            }
+
+            return false;
         }
+
+#if NET8_0_OR_GREATER
+        // The request never reached the server, so it is safe to send again whatever the method.
+        // A TransientHttpException always carries HttpRequestError.Unknown, so it never matches.
+        private static bool IsConnectFailure(Exception ex)
+        {
+            return ex is HttpRequestException request
+                && (request.HttpRequestError == HttpRequestError.ConnectionError
+                    || request.HttpRequestError == HttpRequestError.NameResolutionError);
+        }
+#endif
 
         /// <summary>
         /// Determines if an HTTP status code represents a transient error that should be retried.
@@ -219,7 +590,17 @@ namespace Carom.Http
         /// <summary>
         /// The HTTP status code that caused this exception.
         /// </summary>
+#if NET5_0_OR_GREATER
+        public new HttpStatusCode StatusCode { get; }
+#else
         public HttpStatusCode StatusCode { get; }
+#endif
+
+        // The Retry-After the response carried, as a wait from when it arrived. Null for none.
+        internal TimeSpan? RetryAfter { get; set; }
+
+        // The undisposed response, set only when the handler hands the last response back.
+        internal HttpResponseMessage? Response { get; set; }
 
         /// <summary>
         /// Creates a new TransientHttpException.
@@ -227,7 +608,11 @@ namespace Carom.Http
         /// <param name="message">The error message.</param>
         /// <param name="statusCode">The HTTP status code.</param>
         public TransientHttpException(string message, HttpStatusCode statusCode)
+#if NET5_0_OR_GREATER
+            : base(message, null, statusCode)
+#else
             : base(message)
+#endif
         {
             StatusCode = statusCode;
         }

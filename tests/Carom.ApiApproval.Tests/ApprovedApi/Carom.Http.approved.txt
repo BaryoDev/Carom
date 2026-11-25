@@ -1,3 +1,4 @@
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("Carom.Http.Tests")]
 namespace Carom.Http
 {
     public static class CaromHttpExtensions
@@ -9,13 +10,18 @@ namespace Carom.Http
     }
     public class CaromHttpHandler : System.Net.Http.DelegatingHandler
     {
+        public const string AllowResendOptionName = "Carom.Http.AllowResend";
+        public static readonly System.Net.Http.HttpRequestOptionsKey<bool> AllowResend;
         public CaromHttpHandler() { }
         public CaromHttpHandler(Carom.Bounce config) { }
         public CaromHttpHandler(int retries) { }
         public CaromHttpHandler(System.Net.Http.HttpMessageHandler innerHandler) { }
         public CaromHttpHandler(System.Net.Http.HttpMessageHandler innerHandler, Carom.Bounce config) { }
+        public System.Func<string, Carom.Extensions.Cushion>? CushionForHost { get; set; }
+        public int MaxCushionHosts { get; set; }
         public long MaxRetryBufferBytes { get; set; }
         public bool RetryNonIdempotentRequests { get; set; }
+        public bool ReturnLastResponse { get; set; }
         protected override System.Threading.Tasks.Task<System.Net.Http.HttpResponseMessage> SendAsync(System.Net.Http.HttpRequestMessage request, System.Threading.CancellationToken cancellationToken) { }
     }
     public class TransientHttpException : System.Net.Http.HttpRequestException
