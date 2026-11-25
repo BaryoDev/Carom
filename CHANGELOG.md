@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added - Carom.Http
+
+- `CaromHttpHandler.ReturnLastResponse` (default false): when the tries run out on a transient
+  status, hand back the last response with its body instead of throwing `TransientHttpException`.
+  Every response that is retried is disposed before the next try.
+- `Retry-After` (delta seconds and HTTP-date) goes through `Bounce.WithDelayHint`, so it is clamped
+  to `MaxDelay` and cut by the overall timeout and cancellation. A negative or unparseable value is
+  no hint. It replaces any delay hint on the Bounce given to the handler.
+- `CaromHttpHandler.AllowResend` (a `HttpRequestOptionsKey<bool>`, net8.0) and
+  `AllowResendOptionName` (the key for `request.Properties` on netstandard2.0): a request marked
+  true is safe to resend. A request with an `Idempotency-Key` header counts as marked.
+  `RetryNonIdempotentRequests` is unchanged.
+- `CaromHttpHandler.CushionForHost` and `MaxCushionHosts` (default 100): a `Cushion` per request
+  host, made once per host. A host past the bound runs without a breaker and is not remembered.
+  A response returned by `ReturnLastResponse`, or a 503 on a request sent once, counts as a failure.
+- net8.0 target for `Carom.Http`. On it, `HttpRequestError.SecureConnectionError` is no longer
+  retried, and a connect or name-resolution failure on a POST is resent when the body is a
+  `ByteArrayContent` (including `StringContent`) or absent. Other bodies are not resent. The
+  netstandard2.0 build keeps the old rule.
+
+### Changed - Carom.Http
+
+- `Carom.Http` now references `Carom.Extensions`, which it needs for `Cushion`.
+
 ## [2.1.0] - 2026-11-14
 
 ### Added

@@ -26,7 +26,7 @@ Sizes are the Release-built assemblies. Tests fail if the core grows past 28KB o
 |---------|------|---------|
 | **Carom** | 27KB | Core retry + timeout |
 | **Carom.Extensions** | 59.5KB | Circuit Breaker, Fallback, Bulkhead, Rate Limiting |
-| **Carom.Http** | 12.5KB | HTTP integration |
+| **Carom.Http** | 19KB | HTTP integration (retry, Retry-After, safe resends, breaker per host) |
 | **Carom.DependencyInjection** | 21.5KB | Named resilience pipelines for `IServiceCollection` |
 | **Carom.AspNetCore** | 8.5KB | ASP.NET Core health checks |
 | **Carom.EntityFramework** | 9.5KB | EF Core retry |
@@ -131,6 +131,35 @@ circuit on a healthy service. The default counts everything except cancellation,
 `Bounce.WithTimeout` timeout (`TimeoutRejectedException`) counts as a failure, so a hanging
 dependency opens the breaker. Retries run inside the breaker, so one logical call
 records one outcome no matter how many attempts it took.
+
+### HTTP handler
+
+`CaromHttpHandler` retries 502, 503, 504, 408, 429 and `HttpRequestException`. Options:
+
+```csharp
+var handler = new CaromHttpHandler(Bounce.Times(3).WithMaxDelay(TimeSpan.FromSeconds(30)))
+{
+    // Hand back the last 503 with its body instead of throwing TransientHttpException.
+    ReturnLastResponse = true,
+    // One breaker per host, made once per host. Past MaxCushionHosts (default 100) a new host
+    // runs without a breaker and is not remembered.
+    CushionForHost = host => Cushion.ForService("http:" + host).OpenAfter(5, 10).HalfOpenAfter(TimeSpan.FromSeconds(30)),
+};
+
+// A POST is sent once unless the request is marked, or carries an Idempotency-Key header.
+request.Options.Set(CaromHttpHandler.AllowResend, true);
+```
+
+- `Retry-After` (seconds or HTTP-date) names the wait before the next try, clamped to `MaxDelay` and
+  still cut by the overall timeout. It replaces any `WithDelayHint` on the Bounce you pass in.
+- `ReturnLastResponse` defaults to false, so the handler still throws when the tries run out. Every
+  response that is retried is disposed before the next try.
+- On net8.0 a connect or name-resolution failure is resent even for a POST (nothing reached the
+  server) when the body is a `ByteArrayContent` or `StringContent`. A TLS failure is not retried.
+  The netstandard2.0 build has no `HttpRequestError` and keeps the old rule: every
+  `HttpRequestException` is retried, and a POST is sent once. The typed `AllowResend` key is
+  net5.0 and later; on netstandard2.0 set `request.Properties[CaromHttpHandler.AllowResendOptionName]`.
+- `Carom.Http` now depends on `Carom.Extensions` for `Cushion`.
 
 ### Fallback
 
