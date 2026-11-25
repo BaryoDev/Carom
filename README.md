@@ -166,7 +166,7 @@ request.Options.Set(CaromHttpHandler.AllowResend, true);
   failure is not retried.
   The netstandard2.0 build has no `HttpRequestError` and keeps the old rule: every
   `HttpRequestException` is retried, and a POST is sent once. The typed `AllowResend` key is
-  net5.0 and later; on netstandard2.0 set `request.Properties[CaromHttpHandler.AllowResendOptionName]`.
+  net8.0 only (the package ships netstandard2.0 and net8.0); on netstandard2.0 set `request.Properties[CaromHttpHandler.AllowResendOptionName]`.
 - `Carom.Http` now depends on `Carom.Extensions` for `Cushion`.
 
 ### Fallback

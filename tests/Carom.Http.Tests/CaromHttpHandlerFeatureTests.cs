@@ -146,6 +146,24 @@ public class CaromHttpHandlerFeatureTests
     }
 
     [Fact]
+    public async Task A_response_that_arrives_after_the_timeout_gave_up_is_disposed()
+    {
+        var late = new TaskCompletionSource<HttpResponseMessage>();
+        var inner = new ScriptedHandler((_, _) => late.Task);
+        var handler = new CaromHttpHandler(inner, Quick(0).WithTimeout(TimeSpan.FromMilliseconds(100)))
+        {
+            ReturnLastResponse = true
+        };
+
+        await Assert.ThrowsAsync<TimeoutRejectedException>(() => Send(handler, Get()));
+
+        var response = new TrackedResponse(HttpStatusCode.ServiceUnavailable, "late");
+        late.SetResult(response);
+
+        Assert.True(response.Disposed);
+    }
+
+    [Fact]
     public async Task A_post_that_timed_out_is_not_resent_unless_marked()
     {
         var calls = 0;

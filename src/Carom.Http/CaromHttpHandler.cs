@@ -268,6 +268,8 @@ namespace Carom.Http
         {
             HttpResponseMessage? held = null;
             var handedBack = false;
+            var closed = false;
+            var gate = new object();
             try
             {
                 Func<CancellationToken, Task<HttpResponseMessage>> attempt = async token =>
@@ -288,10 +290,24 @@ namespace Carom.Http
                         RetryAfter = ReadRetryAfter(response)
                     };
 
+                    var kept = false;
                     if (returnResponse)
                     {
+                        // An attempt the timeout abandoned can finish after RunAsync has cleaned
+                        // up. Then nobody is left to take the response, so it is disposed here.
+                        lock (gate)
+                        {
+                            if (!closed)
+                            {
+                                held = response;
+                                kept = true;
+                            }
+                        }
+                    }
+
+                    if (kept)
+                    {
                         failure.Response = response;
-                        held = response;
                     }
                     else
                     {
@@ -318,10 +334,15 @@ namespace Carom.Http
             }
             finally
             {
-                if (!handedBack)
+                HttpResponseMessage? leftover;
+                lock (gate)
                 {
-                    held?.Dispose();
+                    closed = true;
+                    leftover = handedBack ? null : held;
+                    held = null;
                 }
+
+                leftover?.Dispose();
             }
         }
 
