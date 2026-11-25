@@ -439,10 +439,10 @@ namespace Carom.Http
 
 #if NET8_0_OR_GREATER
         // The request never reached the server, so it is safe to send again whatever the method.
+        // A TransientHttpException always carries HttpRequestError.Unknown, so it never matches.
         private static bool IsConnectFailure(Exception ex)
         {
             return ex is HttpRequestException request
-                && !(ex is TransientHttpException)
                 && (request.HttpRequestError == HttpRequestError.ConnectionError
                     || request.HttpRequestError == HttpRequestError.NameResolutionError);
         }
