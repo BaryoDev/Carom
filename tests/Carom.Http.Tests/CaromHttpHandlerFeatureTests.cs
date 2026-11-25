@@ -373,7 +373,11 @@ public class CaromHttpHandlerFeatureTests
         var handler = new CaromHttpHandler(inner, Quick(3)) { CushionForHost = Breaker };
         var down = new Uri("http://down.test/x");
 
-        Func<HttpRequestMessage> post = () => new HttpRequestMessage(HttpMethod.Post, down) { Content = new StringContent("x") };
+        // A forward-only body is not resendable, so this request takes the send-once path.
+        Func<HttpRequestMessage> post = () => new HttpRequestMessage(HttpMethod.Post, down)
+        {
+            Content = new StreamContent(new ForwardOnlyStream(Encoding.UTF8.GetBytes("x")))
+        };
         var first = await Send(handler, post());
         var second = await Send(handler, post());
 
