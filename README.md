@@ -142,13 +142,15 @@ var handler = new CaromHttpHandler(Bounce.Times(3).WithMaxDelay(TimeSpan.FromSec
     // Hand back the last 503 with its body instead of throwing TransientHttpException.
     ReturnLastResponse = true,
     // One breaker per host, made once per host. Past MaxCushionHosts (default 100) a new host
-    // runs without a breaker and is not remembered.
+    // runs without a breaker and is not remembered. A request can also run without a breaker while
+    // other hosts are claiming slots or a factory is failing.
     CushionForHost = host => Cushion.ForService("http:" + host).OpenAfter(5, 10).HalfOpenAfter(TimeSpan.FromSeconds(30)),
 };
 
 // A POST is sent once unless the request is marked, or carries a non-empty Idempotency-Key header.
-// An explicit AllowResend on the request wins: false stops a resend even with the key or
-// RetryNonIdempotentRequests set.
+// An explicit AllowResend on the request wins: false stops a resend after a status or a timeout,
+// even with the key or RetryNonIdempotentRequests set. It does not stop a GET from being retried,
+// or a POST from being sent again after a connect failure (nothing reached the server).
 request.Options.Set(CaromHttpHandler.AllowResend, true);
 ```
 

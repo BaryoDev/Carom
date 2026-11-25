@@ -106,8 +106,11 @@ namespace Carom.Http
         /// A request option the caller sets to true to say this request is safe to resend, for
         /// example <c>request.Options.Set(CaromHttpHandler.AllowResend, true)</c>. A request that
         /// carries a non-empty <c>Idempotency-Key</c> header is treated the same way. An explicit
-        /// value on the request wins: false stops a resend even when the header is present or
-        /// <see cref="RetryNonIdempotentRequests"/> is on, because the most specific setting wins.
+        /// value on the request wins: false stops a resend after a status or a timeout, even when the
+        /// header is present or <see cref="RetryNonIdempotentRequests"/> is on, because the most
+        /// specific setting wins. It does not stop an idempotent method (GET, PUT and so on) from being
+        /// retried, and it does not stop a POST from being sent again after a connect or
+        /// name-resolution failure on net8.0, because nothing reached the server.
         /// </summary>
         public static readonly HttpRequestOptionsKey<bool> AllowResend =
             new HttpRequestOptionsKey<bool>(AllowResendOptionName);
@@ -138,7 +141,8 @@ namespace Carom.Http
         /// <summary>
         /// The most hosts <see cref="CushionForHost"/> is asked about. Defaults to 100. A host that
         /// arrives after the bound is reached is sent without a breaker and is not remembered, so the
-        /// table never grows past the bound. Must be at least 1.
+        /// table never grows past the bound. A request can also run without a breaker while other hosts
+        /// are claiming slots or a factory is failing. Must be at least 1.
         /// </summary>
         public int MaxCushionHosts
         {

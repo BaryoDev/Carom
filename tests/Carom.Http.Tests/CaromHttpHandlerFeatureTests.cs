@@ -759,4 +759,65 @@ public class CaromHttpHandlerFeatureTests
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, seen);
     }
+
+    [Fact]
+    public async Task An_explicit_false_does_not_stop_a_connect_failure_resend()
+    {
+        var inner = ConnectFailureThenOk();
+        var handler = new CaromHttpHandler(inner, Quick(3));
+        var request = Post();
+        request.Options.Set(CaromHttpHandler.AllowResend, false);
+
+        var response = await Send(handler, request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(2, inner.Calls);
+    }
+
+    [Fact]
+    public async Task A_whitespace_idempotency_key_does_not_make_a_post_resendable()
+    {
+        var inner = ScriptedHandler.Statuses(n => n == 1 ? HttpStatusCode.ServiceUnavailable : HttpStatusCode.OK);
+        var handler = new CaromHttpHandler(inner, Quick(3));
+        var request = Post();
+        request.Headers.TryAddWithoutValidation("Idempotency-Key", "   ");
+
+        var response = await Send(handler, request);
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.Equal(1, inner.Calls);
+    }
+
+    [Fact]
+    public async Task Threads_racing_on_one_new_host_do_not_leak_slots()
+    {
+        // Several first requests for host a pass the lookup together; the losers must give their
+        // slot back. With a bound of 2, a leak shows up as host b being refused a breaker.
+        for (var round = 0; round < 20; round++)
+        {
+            var inner = ScriptedHandler.Statuses(_ => HttpStatusCode.OK);
+            var madeFor = new List<string>();
+            var handler = new CaromHttpHandler(inner, Quick(0))
+            {
+                MaxCushionHosts = 2,
+                CushionForHost = host =>
+                {
+                    lock (madeFor) madeFor.Add(host);
+                    return Breaker(host);
+                }
+            };
+            using var gate = new ManualResetEventSlim(false);
+            var tasks = Enumerable.Range(0, 32).Select(_ => Task.Run(async () =>
+            {
+                gate.Wait();
+                (await Send(handler, new HttpRequestMessage(HttpMethod.Get, new Uri("http://a.test/x")))).Dispose();
+            })).ToArray();
+            gate.Set();
+            await Task.WhenAll(tasks);
+
+            (await Send(handler, new HttpRequestMessage(HttpMethod.Get, new Uri("http://b.test/x")))).Dispose();
+
+            Assert.Equal(new[] { "a.test", "b.test" }, madeFor);
+        }
+    }
 }

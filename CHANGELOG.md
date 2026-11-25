@@ -18,7 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `CaromHttpHandler.AllowResend` (a `HttpRequestOptionsKey<bool>`, net8.0) and
   `AllowResendOptionName` (the key for `request.Properties` on netstandard2.0): a request marked
   true is safe to resend. A request with a non-empty `Idempotency-Key` header counts as marked. An
-  explicit false on the request wins over the header and over `RetryNonIdempotentRequests`.
+  explicit false on the request wins over the header and over `RetryNonIdempotentRequests`, for a
+  resend after a status or a timeout. It does not stop an idempotent method from being retried or a
+  connect-failure resend on net8.0.
   `RetryNonIdempotentRequests` is unchanged.
 - `CaromHttpHandler.CushionForHost` and `MaxCushionHosts` (default 100): a `Cushion` per request
   host, made once per host. A host past the bound runs without a breaker and is not remembered.
