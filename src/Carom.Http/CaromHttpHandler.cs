@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
 using System.Threading;
@@ -73,7 +74,8 @@ namespace Carom.Http
         /// (a common cause of 502/504 under failover), a retry would duplicate the
         /// side effect. Retrying also re-serializes the same HttpContent instance,
         /// which silently sends an empty body for non-rewindable stream content.
-        /// Enable only when requests are idempotent (e.g., carry an idempotency key).
+        /// Enable only when requests are idempotent (e.g., carry an idempotency key). An explicit
+        /// <see cref="AllowResend"/> value on a request overrides this flag.
         /// </summary>
         public bool RetryNonIdempotentRequests { get; set; }
 
@@ -103,7 +105,9 @@ namespace Carom.Http
         /// <summary>
         /// A request option the caller sets to true to say this request is safe to resend, for
         /// example <c>request.Options.Set(CaromHttpHandler.AllowResend, true)</c>. A request that
-        /// carries an <c>Idempotency-Key</c> header is treated the same way.
+        /// carries a non-empty <c>Idempotency-Key</c> header is treated the same way. An explicit
+        /// value on the request wins: false stops a resend even when the header is present or
+        /// <see cref="RetryNonIdempotentRequests"/> is on, because the most specific setting wins.
         /// </summary>
         public static readonly HttpRequestOptionsKey<bool> AllowResend =
             new HttpRequestOptionsKey<bool>(AllowResendOptionName);
@@ -114,7 +118,9 @@ namespace Carom.Http
         /// last response, body readable, instead of throwing <see cref="TransientHttpException"/>.
         /// Defaults to false, which keeps the old behaviour: the response is disposed and the
         /// exception is thrown. Every response that is retried is disposed before the next try, and
-        /// only the returned one is left for the caller to dispose.
+        /// only the returned one is left for the caller to dispose. The overall timeout cuts a
+        /// Retry-After wait: the held response is then disposed and
+        /// <see cref="TimeoutRejectedException"/> is thrown.
         /// </summary>
         public bool ReturnLastResponse { get; set; }
 
@@ -145,9 +151,9 @@ namespace Carom.Http
         }
 
         private int _maxCushionHosts = 100;
-        private readonly ConcurrentDictionary<string, Cushion> _cushions =
-            new ConcurrentDictionary<string, Cushion>(StringComparer.OrdinalIgnoreCase);
-        private readonly object _cushionGate = new object();
+        private readonly ConcurrentDictionary<string, Lazy<Cushion>> _cushions =
+            new ConcurrentDictionary<string, Lazy<Cushion>>(StringComparer.OrdinalIgnoreCase);
+        private int _cushionSlots;
 
         // Test seam for reading an HTTP-date Retry-After against a fixed time.
         internal Func<DateTimeOffset>? Clock { get; set; }
@@ -318,57 +324,141 @@ namespace Carom.Http
         private Cushion? CushionFor(HttpRequestMessage request)
         {
             var factory = CushionForHost;
-            var host = request.RequestUri?.Host;
-            if (factory == null || string.IsNullOrEmpty(host))
+            var uri = request.RequestUri;
+            if (factory == null || uri == null || !uri.IsAbsoluteUri)
             {
                 return null;
             }
 
-            if (_cushions.TryGetValue(host!, out var known))
+            var host = uri.Host;
+            if (string.IsNullOrEmpty(host))
             {
-                return known;
+                return null;
             }
 
-            lock (_cushionGate)
+            if (_cushions.TryGetValue(host, out var known))
             {
-                if (_cushions.TryGetValue(host!, out known))
+                return ValueOf(host, known);
+            }
+
+            // Reserve a slot before the factory runs, so the bound holds under parallel first
+            // requests. No lock: the count only goes up by Interlocked, and a loser gives it back.
+            if (Interlocked.Increment(ref _cushionSlots) > _maxCushionHosts)
+            {
+                // Past the bound: this host runs without a breaker, and nothing is stored.
+                Interlocked.Decrement(ref _cushionSlots);
+                return null;
+            }
+
+            var fresh = new Lazy<Cushion>(() => factory(host), LazyThreadSafetyMode.ExecutionAndPublication);
+            var entry = _cushions.GetOrAdd(host, fresh);
+            if (!ReferenceEquals(entry, fresh))
+            {
+                // Another thread's entry won, so its slot is the one in use.
+                Interlocked.Decrement(ref _cushionSlots);
+            }
+
+            return ValueOf(host, entry);
+        }
+
+        // Runs the factory (once, through the Lazy). If it throws, nothing stays stored and the
+        // slot is released, so the next request calls the factory again.
+        private Cushion ValueOf(string host, Lazy<Cushion> entry)
+        {
+            try
+            {
+                return entry.Value;
+            }
+            catch
+            {
+                var pair = new KeyValuePair<string, Lazy<Cushion>>(host, entry);
+                if (((ICollection<KeyValuePair<string, Lazy<Cushion>>>)_cushions).Remove(pair))
                 {
-                    return known;
+                    Interlocked.Decrement(ref _cushionSlots);
                 }
 
-                if (_cushions.Count >= _maxCushionHosts)
-                {
-                    // Past the bound: this host runs without a breaker, and nothing is stored.
-                    return null;
-                }
-
-                var created = factory(host!);
-                _cushions[host!] = created;
-                return created;
+                throw;
             }
         }
 
         private bool CanResend(HttpRequestMessage request)
         {
-            return RetryNonIdempotentRequests
-                || IsIdempotent(request.Method)
-                || HasResendMark(request)
-                || request.Headers.Contains("Idempotency-Key");
+            if (IsIdempotent(request.Method))
+            {
+                return true;
+            }
+
+            // The most specific setting wins: an explicit AllowResend on the request, either way,
+            // beats the Idempotency-Key header and the handler-wide flag.
+            if (TryReadResendMark(request, out var marked))
+            {
+                return marked;
+            }
+
+            return RetryNonIdempotentRequests || HasIdempotencyKey(request);
         }
 
-        private static bool HasResendMark(HttpRequestMessage request)
+        private static bool HasIdempotencyKey(HttpRequestMessage request)
+        {
+            if (!request.Headers.TryGetValues("Idempotency-Key", out var values))
+            {
+                return false;
+            }
+
+            foreach (var value in values)
+            {
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool TryReadResendMark(HttpRequestMessage request, out bool marked)
         {
 #if NET5_0_OR_GREATER
-            return request.Options.TryGetValue(AllowResend, out var marked) && marked;
+            return request.Options.TryGetValue(AllowResend, out marked);
 #else
-            return request.Properties.TryGetValue(AllowResendOptionName, out var marked)
-                && marked is bool allowed && allowed;
+            if (request.Properties.TryGetValue(AllowResendOptionName, out var value) && value is bool allowed)
+            {
+                marked = allowed;
+                return true;
+            }
+
+            marked = false;
+            return false;
 #endif
         }
 
+#if NET8_0_OR_GREATER
         // Content that serializes from memory every time it is asked, so it can be sent again
-        // without buffering it first.
-        private static bool IsReplayable(HttpContent? content) => content == null || content is ByteArrayContent;
+        // without buffering it first. JsonContent serializes its value on every send. A multipart
+        // body is replayable when every part is, at any depth. StreamContent is not.
+        private static bool IsReplayable(HttpContent? content)
+        {
+            if (content == null || content is ByteArrayContent || content is System.Net.Http.Json.JsonContent)
+            {
+                return true;
+            }
+
+            if (content is MultipartContent multipart)
+            {
+                foreach (var part in multipart)
+                {
+                    if (!IsReplayable(part))
+                    {
+                        return false;
+                    }
+                }
+
+                return true;
+            }
+
+            return false;
+        }
+#endif
 
         private static TimeSpan? RetryAfterOf(Exception ex) => (ex as TransientHttpException)?.RetryAfter;
 
@@ -493,7 +583,11 @@ namespace Carom.Http
         /// <param name="message">The error message.</param>
         /// <param name="statusCode">The HTTP status code.</param>
         public TransientHttpException(string message, HttpStatusCode statusCode)
+#if NET5_0_OR_GREATER
+            : base(message, null, statusCode)
+#else
             : base(message)
+#endif
         {
             StatusCode = statusCode;
         }

@@ -146,16 +146,22 @@ var handler = new CaromHttpHandler(Bounce.Times(3).WithMaxDelay(TimeSpan.FromSec
     CushionForHost = host => Cushion.ForService("http:" + host).OpenAfter(5, 10).HalfOpenAfter(TimeSpan.FromSeconds(30)),
 };
 
-// A POST is sent once unless the request is marked, or carries an Idempotency-Key header.
+// A POST is sent once unless the request is marked, or carries a non-empty Idempotency-Key header.
+// An explicit AllowResend on the request wins: false stops a resend even with the key or
+// RetryNonIdempotentRequests set.
 request.Options.Set(CaromHttpHandler.AllowResend, true);
 ```
 
 - `Retry-After` (seconds or HTTP-date) names the wait before the next try, clamped to `MaxDelay` and
   still cut by the overall timeout. It replaces any `WithDelayHint` on the Bounce you pass in.
 - `ReturnLastResponse` defaults to false, so the handler still throws when the tries run out. Every
-  response that is retried is disposed before the next try.
+  response that is retried is disposed before the next try. The overall timeout cuts a
+  `Retry-After` wait: the held response is then disposed and `TimeoutRejectedException` is thrown.
+- An open breaker throws `CircuitOpenException`, which is not an `HttpRequestException`.
 - On net8.0 a connect or name-resolution failure is resent even for a POST (nothing reached the
-  server) when the body is a `ByteArrayContent` or `StringContent`. A TLS failure is not retried.
+  server) when the body can be sent again: a `ByteArrayContent` (including `StringContent`), a
+  `JsonContent`, or a `MultipartContent` whose parts all can. A `StreamContent` is not resent. A TLS
+  failure is not retried.
   The netstandard2.0 build has no `HttpRequestError` and keeps the old rule: every
   `HttpRequestException` is retried, and a POST is sent once. The typed `AllowResend` key is
   net5.0 and later; on netstandard2.0 set `request.Properties[CaromHttpHandler.AllowResendOptionName]`.

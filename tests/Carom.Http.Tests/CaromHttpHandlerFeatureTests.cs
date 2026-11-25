@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Text;
 using Carom.Extensions;
 using Xunit;
@@ -527,5 +528,235 @@ public class CaromHttpHandlerFeatureTests
         var gap = Gap(inner);
         Assert.True(gap >= TimeSpan.FromMilliseconds(150), $"waited {gap}");
         Assert.True(gap < TimeSpan.FromSeconds(10), $"waited {gap}");
+    }
+
+    [Fact]
+    public async Task A_relative_request_uri_passes_through_with_no_breaker_factory()
+    {
+        var inner = ScriptedHandler.Statuses(_ => HttpStatusCode.OK);
+        var handler = new CaromHttpHandler(inner, Quick(0));
+
+        var response = await Send(handler, new HttpRequestMessage(HttpMethod.Get, new Uri("/rel", UriKind.Relative)));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(1, inner.Calls);
+    }
+
+    private static HttpRequestException Refused() => new(HttpRequestError.ConnectionError, "refused");
+
+    private static ScriptedHandler ConnectFailureThenOk(List<byte[]>? bodies = null) => new(async (n, req) =>
+    {
+        if (bodies != null && req.Content != null)
+        {
+            var bytes = await req.Content.ReadAsByteArrayAsync();
+            lock (bodies) bodies.Add(bytes);
+        }
+
+        return n == 1 ? throw Refused() : new HttpResponseMessage(HttpStatusCode.OK);
+    });
+
+    [Fact]
+    public async Task The_callers_predicate_can_veto_a_connect_failure_resend()
+    {
+        var inner = ConnectFailureThenOk();
+        var handler = new CaromHttpHandler(inner, Quick(3).When(ex => false));
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => Send(handler, Post()));
+
+        Assert.Equal(1, inner.Calls);
+    }
+
+    [Fact]
+    public async Task The_callers_predicate_can_allow_a_connect_failure_resend()
+    {
+        var inner = ConnectFailureThenOk();
+        var handler = new CaromHttpHandler(inner, Quick(3).When(ex => true));
+
+        var response = await Send(handler, Post());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(2, inner.Calls);
+    }
+
+    [Fact]
+    public async Task A_json_post_is_resent_after_a_connect_failure_with_the_same_body()
+    {
+        var bodies = new List<byte[]>();
+        var inner = ConnectFailureThenOk(bodies);
+        var handler = new CaromHttpHandler(inner, Quick(3));
+        var request = new HttpRequestMessage(HttpMethod.Post, Url) { Content = JsonContent.Create(new { name = "x", n = 3 }) };
+
+        var response = await Send(handler, request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(2, inner.Calls);
+        Assert.Equal(2, bodies.Count);
+        Assert.NotEmpty(bodies[0]);
+        Assert.Equal(bodies[0], bodies[1]);
+    }
+
+    [Fact]
+    public async Task A_multipart_post_of_replayable_parts_is_resent()
+    {
+        var bodies = new List<byte[]>();
+        var inner = ConnectFailureThenOk(bodies);
+        var handler = new CaromHttpHandler(inner, Quick(3));
+        var form = new MultipartFormDataContent("b") { { new StringContent("v"), "field" } };
+        var request = new HttpRequestMessage(HttpMethod.Post, Url) { Content = form };
+
+        var response = await Send(handler, request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(2, inner.Calls);
+        Assert.Equal(bodies[0], bodies[1]);
+    }
+
+    [Fact]
+    public async Task A_multipart_post_with_a_stream_part_is_not_resent()
+    {
+        var inner = ConnectFailureThenOk();
+        var handler = new CaromHttpHandler(inner, Quick(3));
+        var form = new MultipartFormDataContent
+        {
+            { new StringContent("v"), "field" },
+            { new StreamContent(new ForwardOnlyStream(Encoding.UTF8.GetBytes("payload"))), "file", "f.txt" }
+        };
+        var request = new HttpRequestMessage(HttpMethod.Post, Url) { Content = form };
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => Send(handler, request));
+
+        Assert.Equal(1, inner.Calls);
+    }
+
+    [Fact]
+    public async Task A_nested_multipart_with_a_stream_part_is_not_resent()
+    {
+        var inner = ConnectFailureThenOk();
+        var handler = new CaromHttpHandler(inner, Quick(3));
+        var nested = new MultipartContent("mixed")
+        {
+            new StreamContent(new ForwardOnlyStream(Encoding.UTF8.GetBytes("payload")))
+        };
+        var outer = new MultipartContent("mixed") { new StringContent("v"), nested };
+        var request = new HttpRequestMessage(HttpMethod.Post, Url) { Content = outer };
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => Send(handler, request));
+
+        Assert.Equal(1, inner.Calls);
+    }
+
+    [Fact]
+    public async Task Parallel_first_requests_for_many_hosts_call_the_factory_only_up_to_the_bound()
+    {
+        var inner = ScriptedHandler.Statuses(_ => HttpStatusCode.OK);
+        var made = 0;
+        var handler = new CaromHttpHandler(inner, Quick(0))
+        {
+            MaxCushionHosts = 10,
+            CushionForHost = host =>
+            {
+                Interlocked.Increment(ref made);
+                return Breaker(host);
+            }
+        };
+
+        await Task.WhenAll(Enumerable.Range(0, 200).Select(i => Task.Run(async () =>
+        {
+            var uri = new Uri($"http://host{i}.test/x");
+            (await Send(handler, new HttpRequestMessage(HttpMethod.Get, uri))).Dispose();
+        })));
+
+        Assert.Equal(10, Volatile.Read(ref made));
+        Assert.Equal(200, inner.Calls);
+    }
+
+    [Fact]
+    public async Task A_factory_that_throws_once_is_called_again_and_the_next_request_gets_a_breaker()
+    {
+        var inner = HostScript();
+        var made = 0;
+        var handler = new CaromHttpHandler(inner, Quick(0))
+        {
+            MaxCushionHosts = 1,
+            CushionForHost = host =>
+            {
+                if (Interlocked.Increment(ref made) == 1) throw new InvalidOperationException("factory failed");
+                return Breaker(host);
+            }
+        };
+        var down = new Uri("http://down.test/x");
+        HttpRequestMessage Down() => new(HttpMethod.Get, down);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => Send(handler, Down()));
+        for (var i = 0; i < 2; i++)
+        {
+            await Assert.ThrowsAsync<TransientHttpException>(() => Send(handler, Down()));
+        }
+
+        // Two failures open the breaker, so a breaker was made and kept for this host.
+        await Assert.ThrowsAsync<CircuitOpenException>(() => Send(handler, Down()));
+        Assert.Equal(2, made);
+    }
+
+    [Fact]
+    public async Task An_empty_idempotency_key_does_not_make_a_post_resendable()
+    {
+        var inner = ScriptedHandler.Statuses(n => n == 1 ? HttpStatusCode.ServiceUnavailable : HttpStatusCode.OK);
+        var handler = new CaromHttpHandler(inner, Quick(3));
+        var request = Post();
+        request.Headers.TryAddWithoutValidation("Idempotency-Key", "");
+
+        var response = await Send(handler, request);
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.Equal(1, inner.Calls);
+    }
+
+    [Fact]
+    public async Task An_explicit_false_on_the_request_beats_the_idempotency_key()
+    {
+        var inner = ScriptedHandler.Statuses(n => n == 1 ? HttpStatusCode.ServiceUnavailable : HttpStatusCode.OK);
+        var handler = new CaromHttpHandler(inner, Quick(3));
+        var request = Post();
+        request.Headers.Add("Idempotency-Key", "k");
+        request.Options.Set(CaromHttpHandler.AllowResend, false);
+
+        var response = await Send(handler, request);
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.Equal(1, inner.Calls);
+    }
+
+    [Fact]
+    public async Task An_explicit_false_on_the_request_beats_the_handler_wide_flag()
+    {
+        var inner = ScriptedHandler.Statuses(n => n == 1 ? HttpStatusCode.ServiceUnavailable : HttpStatusCode.OK);
+        var handler = new CaromHttpHandler(inner, Quick(3)) { RetryNonIdempotentRequests = true };
+        var request = Post();
+        request.Options.Set(CaromHttpHandler.AllowResend, false);
+
+        var response = await Send(handler, request);
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.Equal(1, inner.Calls);
+    }
+
+    [Fact]
+    public async Task The_transient_exception_carries_its_status_as_an_http_request_exception()
+    {
+        var inner = ScriptedHandler.Statuses(_ => HttpStatusCode.ServiceUnavailable);
+        var handler = new CaromHttpHandler(inner, Quick(1));
+        HttpStatusCode? seen = null;
+
+        try
+        {
+            await Send(handler, Get());
+        }
+        catch (HttpRequestException e) when (e.StatusCode == HttpStatusCode.ServiceUnavailable)
+        {
+            seen = e.StatusCode;
+        }
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, seen);
     }
 }

@@ -17,15 +17,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no hint. It replaces any delay hint on the Bounce given to the handler.
 - `CaromHttpHandler.AllowResend` (a `HttpRequestOptionsKey<bool>`, net8.0) and
   `AllowResendOptionName` (the key for `request.Properties` on netstandard2.0): a request marked
-  true is safe to resend. A request with an `Idempotency-Key` header counts as marked.
+  true is safe to resend. A request with a non-empty `Idempotency-Key` header counts as marked. An
+  explicit false on the request wins over the header and over `RetryNonIdempotentRequests`.
   `RetryNonIdempotentRequests` is unchanged.
 - `CaromHttpHandler.CushionForHost` and `MaxCushionHosts` (default 100): a `Cushion` per request
   host, made once per host. A host past the bound runs without a breaker and is not remembered.
   A response returned by `ReturnLastResponse`, or a 503 on a request sent once, counts as a failure.
 - net8.0 target for `Carom.Http`. On it, `HttpRequestError.SecureConnectionError` is no longer
-  retried, and a connect or name-resolution failure on a POST is resent when the body is a
-  `ByteArrayContent` (including `StringContent`) or absent. Other bodies are not resent. The
-  netstandard2.0 build keeps the old rule.
+  retried, and a connect or name-resolution failure on a POST is resent when the body is absent, a
+  `ByteArrayContent` (including `StringContent`), a `JsonContent`, or a `MultipartContent` whose
+  parts all qualify. Other bodies, such as `StreamContent`, are not resent. The netstandard2.0
+  build keeps the old rule.
+- `TransientHttpException` passes its status to `HttpRequestException.StatusCode` on net8.0.
+- A request with a relative `RequestUri` passes through the handler, with no breaker.
 
 ### Changed - Carom.Http
 
