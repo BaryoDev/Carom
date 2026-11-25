@@ -19,7 +19,12 @@ public class CaromHttpHandlerFeatureTests
     /// <summary>A response that records whether it was disposed.</summary>
     private sealed class TrackedResponse : HttpResponseMessage
     {
+        private readonly TaskCompletionSource<bool> _gone = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public bool Disposed { get; private set; }
+
+        /// <summary>Completes when the response is disposed.</summary>
+        public Task Gone => _gone.Task;
 
         public TrackedResponse(HttpStatusCode status, string body) : base(status)
         {
@@ -29,6 +34,7 @@ public class CaromHttpHandlerFeatureTests
         protected override void Dispose(bool disposing)
         {
             Disposed = true;
+            _gone.TrySetResult(true);
             base.Dispose(disposing);
         }
     }
@@ -160,7 +166,9 @@ public class CaromHttpHandlerFeatureTests
         var response = new TrackedResponse(HttpStatusCode.ServiceUnavailable, "late");
         late.SetResult(response);
 
-        Assert.True(response.Disposed);
+        // The abandoned attempt resumes off the test's sync context, so wait for it.
+        var first = await Task.WhenAny(response.Gone, Task.Delay(TimeSpan.FromSeconds(5)));
+        Assert.Same(response.Gone, first);
     }
 
     [Fact]
